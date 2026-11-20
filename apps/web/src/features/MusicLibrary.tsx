@@ -5,10 +5,12 @@ import { Icon } from "../shell/icons";
 import type { Actions } from "../shell/types";
 import { updateSettings, useSettings } from "../shared/settings";
 import { EmptyState, PageHeader } from "./parts";
+import { AddMusicButton, fmtDur, fmtSize, useLocalTracks } from "./LocalMusic";
+import { deleteLocalTrack } from "../storage/music";
 
 /**
  * Fon Müziklerim: platform yöneticisinin lisansladığı kataloğu dinlet, favorile, yeni çalışmada kullan.
- * Müzik yükleme/indirme YOKTUR (bilinçli kural): ön izleme düşük kaliteli ve korumalıdır.
+ * Kendi müziğini yükleyebilirsin (yalnızca bu cihazda saklanır, sunucuya gitmez); katalog parçaları indirilemez.
  */
 export function MusicLibrary({ actions }: { actions: Actions }) {
   const settings = useSettings();
@@ -18,6 +20,7 @@ export function MusicLibrary({ actions }: { actions: Actions }) {
   const [mood, setMood] = useState("");
   const [onlyFav, setOnlyFav] = useState(false);
   const [playing, setPlaying] = useState<string | null>(null);
+  const mine = useLocalTracks();
   const player = useRef<PreviewPlayer>(null as unknown as PreviewPlayer);
   if (!player.current) player.current = new PreviewPlayer();
 
@@ -39,10 +42,35 @@ export function MusicLibrary({ actions }: { actions: Actions }) {
 
   return (
     <>
-      <PageHeader title="Fon Müziklerim" sub="Dinle, favorile ve yeni çalışmanda kullan" />
-      <div className="note" role="note">🎵 Fon müzikleri yalnızca platform yöneticisi tarafından, lisansları doğrulanarak eklenir. Kendi müziğini yükleyemezsin ve ham dosyalar indirilemez; ön izleme düşük kalitelidir, nihai kayıtta tam kalite kullanılır.</div>
+      <PageHeader title="Fon Müziklerim" sub="Müziklerini yükle, dinle ve çalışmanda kullan" actions={<AddMusicButton primary onAdded={() => void mine.reload()} onError={setError} />} />
+      <div className="note" role="note">🎵 Yüklediğin müzikler yalnızca bu cihazda saklanır, sunucuya gönderilmez. Yalnızca hakkına sahip olduğun veya kullanım izni olan müzikleri yükle.</div>
       {error && <div className="alert" role="alert">{error}</div>}
 
+      <section aria-labelledby="mine-h" className="sec">
+        <h2 id="mine-h">Yüklediklerim</h2>
+        {mine.tracks && mine.tracks.length === 0 && <EmptyState icon="music" title="Henüz müzik yüklemedin" action={<AddMusicButton primary onAdded={() => void mine.reload()} onError={setError} />}>MP3, WAV, M4A veya OGG yükleyebilirsin.</EmptyState>}
+        <div className="mgrid">
+          {(mine.tracks ?? []).map((t) => (
+            <article key={t.id} className="mcard">
+              <div className="mcard-b">
+                <h3>{t.title}</h3>
+                <p className="muted small">{fmtDur(t.durationSec)} · {fmtSize(t.size)}</p>
+                <div className="row" style={{ marginTop: 8 }}>
+                  <button className="btn" aria-label={`${playing === t.id ? "Durdur" : "Dinle"}: ${t.title}`} onClick={() => void toggle(t.id)}><Icon name={playing === t.id ? "stop" : "play"} size={16} /> {playing === t.id ? "Durdur" : "Dinle"}</button>
+                  <button className="btn primary" onClick={() => { player.current.stop(); actions.create({ trackId: t.id }); }}>Bu müzikle başla</button>
+                  <button className="btn ghost" aria-label={`Sil: ${t.title}`} onClick={async () => {
+                    if (!confirm(`“${t.title}” fon müziklerinden silinsin mi?`)) return;
+                    if (playing === t.id) { player.current.stop(); setPlaying(null); }
+                    await deleteLocalTrack(t.id); await mine.reload();
+                  }}><Icon name="trash" size={18} /></button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <h2>Hazır katalog</h2>
       <div className="filters" role="group" aria-label="Filtrele">
         <button className="btn" aria-pressed={!mood && !onlyFav} onClick={() => { setMood(""); setOnlyFav(false); }}>Hepsi</button>
         <button className="btn" aria-pressed={onlyFav} onClick={() => setOnlyFav(!onlyFav)}>★ Favoriler ({fav.length})</button>

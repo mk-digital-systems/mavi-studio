@@ -12,6 +12,8 @@ import { sanitizeMix, toRecipe } from "../shared/mix";
 import { anonymousSessionId } from "../storage/repo";
 import { effectiveFx } from "../storage/migrate";
 import { openTakeReader } from "../storage/takeReader";
+import { mixWithMusic } from "../audio/localMix";
+import { getLocalTrackBlob, isLocalTrack } from "../storage/music";
 import { fmt, slug } from "../shared/util";
 import { guard } from "../shared/prefs";
 import { tr } from "../shared/tr";
@@ -42,7 +44,9 @@ export function ExportPanel({ draft, patch, takes, defaultForVideo }: Props) {
   const take = done.find((t) => t.id === takeId);
   const hasMusic = !!draft.trackId;
   // Müziksiz WAV tamamen cihazda üretilir; video isteniyorsa ses sunucuya gitmek zorundadır (video işçisi onu okur).
-  const local = !hasMusic && mix.format === "wav" && !forVideo;
+  // Yüklenen (yerel) fon müziği sunucuya gitmez: miks de cihazda yapılır (yalnızca WAV, video yok).
+  const localMusic = isLocalTrack(draft.trackId);
+  const local = localMusic || (!hasMusic && mix.format === "wav" && !forVideo);
   const busy = !["idle", "ready", "local-ready", "error"].includes(phase);
 
   // Dışa aktarma sürerken: sayfadan çıkarken uyar, ekran uyumasın (render/yükleme uzun sürebilir).
@@ -71,9 +75,14 @@ export function ExportPanel({ draft, patch, takes, defaultForVideo }: Props) {
         // Cihazda: sunucuya hiçbir şey gönderilmez.
         setPhase("render");
         const r = await renderTakeToWav(reader, fxFor, analysis, { normalize: true, targetLufs: -16, onProgress: setProgress, signal: ac.signal });
+        let outBlob = r.blob;
+        if (localMusic) {
+          setPhase("mix");
+          outBlob = await mixWithMusic(r.blob, await getLocalTrackBlob(draft.trackId!), mix);
+        }
         if (localUrl.current) URL.revokeObjectURL(localUrl.current);
-        localUrl.current = URL.createObjectURL(r.blob);
-        setResult({ url: localUrl.current, name: `${base}.wav`, note: `${fmt(r.durationSec * 1000)} · stereo 48 kHz · 24-bit · yaklaşık ${r.lufs.toFixed(1)} LUFS · cihazında oluşturuldu` });
+        localUrl.current = URL.createObjectURL(outBlob);
+        setResult({ url: localUrl.current, name: `${base}.wav`, note: localMusic ? `${fmt(r.durationSec * 1000)} · stereo 48 kHz · 24-bit · fon müziğiyle birleşik · cihazında oluşturuldu` : `${fmt(r.durationSec * 1000)} · stereo 48 kHz · 24-bit · yaklaşık ${r.lufs.toFixed(1)} LUFS · cihazında oluşturuldu` });
         setPhase("local-ready");
         startDownload(localUrl.current, `${base}.wav`);
         return;
@@ -133,9 +142,9 @@ export function ExportPanel({ draft, patch, takes, defaultForVideo }: Props) {
         </div>
         <div>
           <label htmlFor="ex-fmt">Biçim</label>
-          <select id="ex-fmt" value={mix.format} disabled={busy} onChange={(e) => setMix({ format: e.target.value as "wav" | "mp3" })}>
+          <select id="ex-fmt" value={localMusic ? "wav" : mix.format} disabled={busy} onChange={(e) => setMix({ format: e.target.value as "wav" | "mp3" })}>
             <option value="wav">WAV — yüksek kalite (48 kHz · 24-bit · stereo)</option>
-            <option value="mp3">MP3 — paylaşım (192 kbps · stereo)</option>
+            <option value="mp3" disabled={localMusic}>MP3 — paylaşım (192 kbps · stereo){localMusic ? " — yüklediğin müzikle yok" : ""}</option>
           </select>
         </div>
         <div><label htmlFor="ex-poet">Şair (isteğe bağlı)</label><input id="ex-poet" type="text" value={mix.poet} maxLength={80} disabled={busy} onChange={(e) => setMix({ poet: e.target.value })} /></div>
@@ -158,7 +167,7 @@ export function ExportPanel({ draft, patch, takes, defaultForVideo }: Props) {
         </fieldset>
       ) : <p className="small muted">Fon müziği seçilmedi: yalnızca sesin efektlerle ve −16 LUFS seviyesine getirilerek dışa aktarılır.</p>}
 
-      <label className="row chk"><input type="checkbox" checked={forVideo} disabled={busy} onChange={(e) => setForVideo(e.target.checked)} /> Bu kayıttan video da hazırla (TikTok, Reels, YouTube){local ? " — ses sunucuya gönderilir" : ""}</label>
+      <label className="row chk"><input type="checkbox" checked={forVideo && !localMusic} disabled={busy || localMusic} onChange={(e) => setForVideo(e.target.checked)} /> Bu kayıttan video da hazırla (TikTok, Reels, YouTube){localMusic ? " — yüklediğin fon müziğiyle şimdilik kullanılamaz" : local ? " — ses sunucuya gönderilir" : ""}</label>
       {local ? (
         <div className="note" role="note" style={{ margin: "14px 0" }}>🔒 Bu dışa aktarma <b>tamamen cihazında</b> yapılır; ses sunucuya gönderilmez.</div>
       ) : (

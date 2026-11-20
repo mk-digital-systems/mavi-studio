@@ -3,6 +3,7 @@ import type { TrackPublic } from "@siir/contracts";
 import type { Draft } from "../App";
 import { PreviewPlayer } from "../audio/preview";
 import { useSettings } from "../shared/settings";
+import { AddMusicButton, fmtDur, useLocalTracks } from "./LocalMusic";
 
 type P = { draft: Draft; patch: (p: Partial<Draft>) => void; back: () => void; next: () => void };
 
@@ -11,6 +12,7 @@ export function MusicPicker({ draft, patch, back, next }: P) {
   const [error, setError] = useState("");
   const [mood, setMood] = useState("");
   const [playing, setPlaying] = useState<string | null>(null);
+  const mine = useLocalTracks();
   const player = useRef<PreviewPlayer>(null as unknown as PreviewPlayer);
   if (!player.current) player.current = new PreviewPlayer();
 
@@ -34,8 +36,11 @@ export function MusicPicker({ draft, patch, back, next }: P) {
   return (
     <>
       <section className="card">
-        <h1 className="h2">Fon müziği</h1>
-        <p className="muted">Stüdyonun hazır fonlarından birini seç; ön izleme düşük kalitelidir, nihai kayıtta tam kalite kullanılır.</p>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+          <h1 className="h2">Fon müziği</h1>
+          <AddMusicButton onAdded={(t) => { void mine.reload(); choose(t[0].id); }} onError={setError} />
+        </div>
+        <p className="muted">Yüklediğin müziklerden ya da stüdyonun hazır fonlarından birini seç. Yüklediğin müzikler yalnızca bu cihazda kalır.</p>
         {error && <div className="alert" role="alert">{error}</div>}
         <div className="filters" role="group" aria-label="Duyguya göre filtrele">
           <button className="btn" aria-pressed={!mood} onClick={() => setMood("")}>Hepsi</button>
@@ -46,6 +51,17 @@ export function MusicPicker({ draft, patch, back, next }: P) {
             <div style={{ width: 64, height: 64, borderRadius: 10, background: "var(--bg)", display: "grid", placeItems: "center", flex: "none" }} aria-hidden>🎙</div>
             <span><b>Müziksiz</b><span className="muted small">Yalnızca sesin</span></span>
           </button>
+          {(mine.tracks ?? []).map((t) => (
+            <div key={t.id}>
+              <button className="track" aria-pressed={draft.trackId === t.id} onClick={() => choose(t.id)}>
+                <div style={{ width: 64, height: 64, borderRadius: 10, background: "var(--bg)", display: "grid", placeItems: "center", flex: "none" }} aria-hidden>🎵</div>
+                <span><b>{t.title}</b><span className="muted small">Yüklediğim · {fmtDur(t.durationSec)}</span></span>
+              </button>
+              <button className="btn ghost small" style={{ marginTop: 6, minHeight: 40 }} onClick={() => toggle(t.id)} aria-label={`${playing === t.id ? "Durdur" : "Ön izle"}: ${t.title}`}>
+                <span aria-hidden>{playing === t.id ? "■" : "▶"}</span> {playing === t.id ? "Durdur" : "Ön izle"}
+              </button>
+            </div>
+          ))}
           {!tracks && !error && <p className="muted">Yükleniyor…</p>}
           {shown.map((t) => (
             <div key={t.id}>
