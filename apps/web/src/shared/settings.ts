@@ -32,7 +32,7 @@ export type BroadcastSettings = {
   darkMode: boolean;                        // karanlık yayın modu
 };
 export const defaultBroadcast = (): BroadcastSettings => ({
-  volumes: { mic: 1, music: 0.5, voice: 1, sfx: 0.7 }, duck: { enabled: true, amountDb: 12, thresholdDb: -42 }, micToOutput: false, darkMode: true,
+  volumes: { mic: 1, music: 0.8, voice: 1, sfx: 0.8 }, duck: { enabled: true, amountDb: 12, thresholdDb: -42 }, micToOutput: false, darkMode: true,
 });
 export function sanitizeBroadcast(raw: unknown): BroadcastSettings {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, any>, d = defaultBroadcast(), v = o.volumes ?? {}, k = o.duck ?? {};

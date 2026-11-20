@@ -185,7 +185,7 @@ export function LiveDesk({ data, initialPerformance, onConsumed }: { data: Local
           <aside className="live-lib" aria-label="Kütüphane paneli">
             <LibraryPanel poems={poems} performances={performances} tracks={tracks}
               poemId={poem?.id ?? null} perfId={perf?.id ?? null} trackId={musicTrack?.id ?? null} musicPlayingId={desk.musicPlaying ? desk.musicId : null}
-              onPoem={pickPoem} onPerf={(p) => void loadPerf(p, false)} onMusic={(t) => { setMusicTrack(t); setErr(""); }} />
+              onPoem={pickPoem} onPerf={(p) => void loadPerf(p, false)} onMusic={(t) => { if (desk.musicPlaying && desk.musicId === t.id) { desk.stopMusic(1); setMusicTrack(t); } else void playTrack(t); }} />
           </aside>
         )}
         <main className="live-stage">
@@ -193,7 +193,7 @@ export function LiveDesk({ data, initialPerformance, onConsumed }: { data: Local
             <b className="live-name">{poem?.title || perf?.title || "Şiir seçilmedi — soldaki kütüphaneden seç"}</b>
             {(poem?.mix.poet || perf?.poet) && <span className="muted">{poem?.mix.poet || perf?.poet}</span>}
             {mode === "live" && <span className="muted small">Okuma süresi <b>{fmt(elapsed)}{estimate ? ` / ≈${fmt(estimate)}` : ""}</b></span>}
-            <span className="muted small">Fon: <b>{mode === "recorded" && perf?.backgroundTrackId ? (bgOn ? "kayıtlı şiirin fonu" : "kapalı") : musicTrack?.title ?? "yok"}</b></span>
+            <span className="muted small">Fon: <b>{mode === "recorded" && perf?.backgroundTrackId ? (bgOn ? "kayıtlı şiirin fonu" : "kapalı") : musicTrack?.title ?? "yok"}</b>{desk.musicPlaying ? " ▶ çalıyor" : musicTrack ? " (durdu)" : ""}</span>
           </div>
           <Teleprompter ref={tele} title={poem?.title ?? perf?.title ?? ""} poet={poem?.mix.poet ?? perf?.poet ?? ""} stanzas={stanzas}
             fontScale={fontScale} speed={speed} running={mode === "live" && running} activeLineId={mode === "recorded" ? (activeLine ?? null) : undefined} resetKey={(poem?.id ?? "") + (perf?.id ?? "")} />

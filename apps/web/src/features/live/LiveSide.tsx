@@ -41,7 +41,7 @@ export function LibraryPanel({ poems, performances, tracks, poemId, perfId, trac
       </section>
       <section aria-labelledby="lb-m"><h3 id="lb-m" className="lib-h">Fon Müziklerim <small>({ts.length})</small></h3>
         <ul className="lib-list">
-          {ts.map((t) => <Row key={t.id} active={trackId === t.id || musicPlayingId === t.id} title={t.title} sub={t.artist} label="Fon yap" fn={() => onMusic(t)} />)}
+          {ts.map((t) => <Row key={t.id} active={trackId === t.id || musicPlayingId === t.id} title={t.title} sub={t.artist} label={musicPlayingId === t.id ? "■ Durdur" : "▶ Fonu çal"} fn={() => onMusic(t)} />)}
           {ts.length === 0 && <li className="muted small">Fon yok.</li>}
         </ul>
       </section>

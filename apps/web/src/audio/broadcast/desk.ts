@@ -119,6 +119,7 @@ export class Desk {
     m.fade.gain.cancelScheduledValues(t); m.fade.gain.setValueAtTime(fi > 0 ? 0 : 1, t);
     if (fi > 0) m.fade.gain.linearRampToValueAtTime(1, t + fi);
     await m.el.play(); this.hooks.onChange?.();
+    if (this.ctx.state !== "running") throw new Error("Tarayıcı sesi başlatmadı. Sayfada bir yere tıklayıp fonu tekrar çal.");
   }
   pauseMusic() { this.music?.el.pause(); this.hooks.onChange?.(); }
   async resumeMusic() { if (this.music && this.music.el.paused) { await this.resume(); await this.music.el.play(); this.hooks.onChange?.(); } }
