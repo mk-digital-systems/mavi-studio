@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Mavi Kadraj — cihazınızda çalışan dikey video editörü.">
+  <title>Mavi Kadraj · Video Atölyesi</title>
+  <link rel="stylesheet" href="editor.css">
+  <script src="legacy.js" defer></script>
+  <script src="vendor/mediabunny-mp4.min.js" defer></script>
+  <script src="mp4check.js" defer></script>
+  <script src="exporter.js" defer></script>
+  <script src="history.js" defer></script>
+  <script src="project-store.js" defer></script>
+  <script src="grade.js" defer></script>
+  <script src="voice.js" defer></script>
+  <script src="editor.js" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="./" aria-label="Mavi Kadraj"><span class="brand-icon">▣</span><span>Mavi Kadraj<small>VİDEO ATÖLYESİ</small></span></a>
+  <div class="project-name"><input id="projectName" aria-label="Proje adı" value="İsimsiz proje" maxlength="100"><span id="saveStatus">Yeni proje</span><span id="headerDuration" aria-label="Toplam proje süresi">00:00 / 04:00</span></div>
+  <nav aria-label="Proje işlemleri"><button id="undo" title="Geri al (Ctrl+Z)" disabled>↶ Geri Al</button><button id="redo" title="Yinele (Ctrl+Y)" disabled>↷ Yinele</button><button id="newProject">Yeni Proje</button><button id="openProject">Proje Aç</button><button id="saveProject">Projeyi Kaydet</button><button class="primary" id="exportVideo">↓ Videoyu İndir</button></nav>
+</header>
+<main id="workspace">
+  <section class="library panel" aria-label="Kütüphane"><div class="toolstrip" role="tablist" aria-label="Araçlar"><button role="tab" data-tool="media" aria-selected="true">Medya</button><button role="tab" data-tool="text" aria-selected="false">Yazı</button><button role="tab" data-tool="look" aria-selected="false">Görünüm</button><button role="tab" data-tool="audio" aria-selected="false">Ses</button></div><div id="libContent"><div id="lib-media" class="lib-body"></div><div id="lib-text" class="lib-body" hidden></div><div id="lib-look" class="lib-body" hidden></div><div id="lib-audio" class="lib-body" hidden><div id="recBox" class="rec-box"><strong>Mikrofonla anlatım kaydet</strong><div class="rec-row"><button id="recStart" class="primary">● Kayda başla</button><button id="recStop" class="danger" hidden>■ Durdur ve ekle</button><output id="recTime">00:00</output></div><div class="rec-meter" aria-hidden="true"><i id="recLevel"></i></div><label class="check-field"><input type="checkbox" id="recPlay" checked>Kayıt sırasında videoyu sessiz oynat (şiiri görüntüye göre oku)</label><label class="check-field"><input type="checkbox" id="recNs" checked>Tarayıcının gürültü bastırması</label><p class="small">Kayıt cihazından çıkmaz. Başlamadan önce 3 saniyelik geri sayım olur. Kulaklık takarsan hoparlör sesi mikrofona karışmaz.</p></div><div id="voiceBox" class="voice-box"></div><div id="audioControls"></div></div></div></section>
+  <section class="preview panel" aria-label="Video önizlemesi">
+    <div class="panel-heading"><h1>Önizleme</h1><span class="pill">9:16 <span>·</span> 1080 × 1920</span></div>
+    <div class="preview-stage"><div class="side side-left"><button id="playScene">▷ Sahneyi Oynat</button></div><div class="preview-area"><div id="canvasWrap"><canvas id="preview" width="1080" height="1920" aria-label="Video önizlemesi; yazıyı sürükleyerek konumlandırın"></canvas><div id="emptyPreview"><span>▧</span><strong>Hikâyen bir kareyle başlar.</strong><p>Alttaki + Sahne Ekle ile<br>ilk fotoğrafını ya da videonu ekle.</p></div></div></div><div class="side side-right"><button id="playAll" class="primary">▶ Tüm Videoyu Oynat</button><button id="pause" aria-label="Duraklat" hidden>Ⅱ Duraklat</button><output id="clock">00:00 / 00:00</output></div></div>
+    <p class="preview-hint">Yazıyı önizlemede sürükle. <kbd>Boşluk</kbd> oynat / duraklat.</p>
+  </section>
+  <section class="inspector panel" aria-label="Seçili sahne ayarları">
+    <div class="panel-heading"><h2 id="inspectorTitle">Sahne ayarları</h2><span id="sceneType" class="muted"></span></div>
+    <div id="noSelection" class="empty-state"><span>↖</span><h3>Bir sahne seç</h3><p>Görsel, hareket ve yazı ayarlarını<br>buradan düzenleyebilirsin.</p></div>
+    <div id="selectedPanel" hidden>
+      <div class="tabs" role="tablist" aria-label="Panel"><button role="tab" aria-selected="true" aria-controls="tabContent" data-tab="visual">Sahne</button><button role="tab" aria-selected="false" aria-controls="tabContent" data-tab="text">Yazı</button></div>
+      <div id="tabContent" role="tabpanel"></div>
+      <div class="scene-actions"><button id="moveLeft" title="Önceki sıraya taşı">←</button><button id="moveRight" title="Sonraki sıraya taşı">→</button><button id="duplicateScene" title="Hemen yanına bir kopya ekler">⧉ Çoğalt</button><button id="copyScene" title="Sahneyi kopyalar (Ctrl+C)">Kopyala</button><button id="pasteScene" title="Kopyalanan sahneyi seçili sahnenin arkasına yapıştırır (Ctrl+V)" disabled>Yapıştır</button><button id="deleteScene" class="danger">Sahneyi Sil</button></div>
+    </div>
+  </section>
+  <section class="timeline panel" aria-label="Zaman çizelgesi">
+    <div class="panel-heading"><div><h2>Zaman çizelgesi</h2><span id="sceneCount" class="muted">0 sahne</span></div><span id="totalTime" class="total">Toplam 00:00</span><label class="zoom">Yakınlaştır<input id="tlZoom" type="range" min="8" max="120" value="60" aria-label="Zaman çizelgesi yakınlaştırma"></label><div class="add-wrap"><button id="addScene" class="primary" aria-expanded="false" aria-controls="addMenu">+ Sahne Ekle</button><div id="addMenu" hidden><button data-add="image">▧ Fotoğraf sahnesi</button><button data-add="video">▷ Video sahnesi</button><button data-add="title">T Başlık kartı</button></div></div></div>
+    <div class="scrub-row"><output id="scrubTime">00:00</output><input id="scrubber" aria-label="Oynatma konumu" type="range" min="0" max="0" step="0.01" value="0"><output id="scrubEnd">00:00</output></div>
+    <p id="durationWarning" class="duration-warning" role="status" hidden></p>
+    <div id="timelineScroll"><div id="tlCanvas"><div id="tlRuler" aria-hidden="true"></div><div id="textLanes" aria-label="Yazı şeritleri"></div><div id="sceneTrack"><p class="timeline-empty">Henüz sahne yok. Fotoğraflarını ekle, sırala, hikâyeni oluştur.</p></div><div id="playhead" aria-hidden="true" hidden></div></div></div>
+    <div class="timeline-footer"><span>⠿ Sıralamak için sahneleri sürükle</span><span>Toplam süre 10 sn – 4 dk · Tek sahne daha kısa olabilir</span></div>
+  </section>
+  
+</main>
+<input id="mediaPicker" type="file" accept="image/*" multiple hidden>
+<input id="replacePicker" type="file" accept="image/*,video/*" hidden>
+<input id="audioPicker" type="file" accept="audio/*" hidden>
+<input id="projectPicker" type="file" accept=".mavikadraj,.json,application/json" hidden>
+<dialog id="projectsDialog"><div class="dialog-heading"><h2>Proje Aç</h2><button data-close="projectsDialog" aria-label="Kapat">✕</button></div><p class="muted">Kaydedilen medya ve düzenlemeler bu tarayıcıda saklanır.</p><div id="projectList"></div><div class="dialog-actions"><button id="importProject">Dosyadan proje aç</button><button id="backupProject">Mevcut projenin yedeğini indir</button></div></dialog>
+<dialog id="exportDialog"><div class="dialog-heading"><h2>Videoyu İndir</h2><button id="closeExport" aria-label="Kapat">✕</button></div><div class="export-spec">1080 × 1920 <span>9:16 · 30 kare/sn</span></div><label class="field">Dosya adı<input id="exportName" maxlength="100" placeholder="Mavi Kadraj" autocomplete="off" spellcheck="false"></label><p id="exportWhere" class="muted small"></p><label class="field">Çözünürlük<select id="exportRes"><option value="fhd">Full HD — 1080 × 1920</option><option value="4k">4K — 2160 × 3840</option></select></label><p id="exportEstimate" class="small muted"></p><p id="exportSource" class="warn-note" hidden></p><label class="field">Dosya biçimi<select id="exportFormat"></select></label><p id="exportDescription" class="muted"></p><p id="exportDevice" class="muted small"></p><progress id="exportProgress" max="100" value="0"></progress><p id="exportStatus" role="status">İndirmeye hazır.</p><p id="exportNote" class="muted small"></p><div class="dialog-actions"><button id="cancelExport" hidden>İptal Et</button><button id="startExport" class="primary">Videoyu Oluştur ve Kaydet</button><a id="downloadAgain" class="button primary" hidden>Tekrar İndir</a></div></dialog>
+<div id="toast" role="status" hidden></div>
+</body>
+</html>

@@ -4,3 +4,5 @@ dist/
 .env.*
 private/
 *.log
+
+video editor/

@@ -116,3 +116,15 @@ h2[tabindex="-1"]:focus { outline: none; }
 .pcard h2, .pcard h3, .mcard h2 { font-size: 1.15rem; margin: 0; }
 .mcard .btn[aria-pressed=true] svg { fill: currentColor; }
 .empty h2 { margin: 4px 0 6px; }
+
+/* Video atölyesi (gömülü editör) */
+.vs-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; }
+.vs-tabs .btn[aria-pressed="true"] { background: var(--accent, #2563eb); color: #fff; border-color: transparent; }
+.vstudio { display: grid; gap: 12px; }
+.vs-bar { display: flex; gap: 12px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+.vs-bar p { margin: 0; max-width: 60ch; }
+.vs-act { display: flex; gap: 8px; flex-wrap: wrap; }
+.vs-pick h3 { margin: 0 0 8px; }
+.vs-list, .vs-list ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.vs-list ul li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
+.vs-frame { width: 100%; height: 85vh; min-height: 760px; border: 1px solid var(--line); border-radius: var(--r); background: #0b0f14; }

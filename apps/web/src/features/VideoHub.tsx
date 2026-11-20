@@ -1,14 +1,31 @@
+import { useState } from "react";
 import { Icon } from "../shell/icons";
 import type { Actions } from "../shell/types";
 import type { LocalData } from "../shared/useLocalData";
 import { EmptyState, PageHeader, ProjectCard } from "./parts";
+import { VideoStudio } from "./VideoStudio";
 
 /** Video Editörü: şiirli ses çalışmalarından video üretimine giriş. Yalnızca gerçekten var olan özellikleri sunar. */
 export function VideoHub({ data, actions }: { data: LocalData; actions: Actions }) {
+  const [mode, setMode] = useState<"studio" | "quick">("studio");
   const ready = (data.projects ?? []).filter((p) => (data.takes[p.id] ?? []).length > 0);
+  const tabs = (
+    <div className="vs-tabs" role="group" aria-label="Video yöntemi">
+      <button className="btn" aria-pressed={mode === "studio"} onClick={() => setMode("studio")}>Video atölyesi</button>
+      <button className="btn" aria-pressed={mode === "quick"} onClick={() => setMode("quick")}>Şiirden hızlı video</button>
+    </div>
+  );
+  if (mode === "studio") return (
+    <>
+      <PageHeader title="Video Editörü" sub="Fotoğraf ve videolarla düzenle, istersen şiir sesini ekle" />
+      {tabs}
+      <VideoStudio data={data} />
+    </>
+  );
   return (
     <>
       <PageHeader title="Video Editörü" sub="Şiirinden paylaşılabilir video oluştur" actions={<button className="btn primary" onClick={() => actions.create({ video: true })}><Icon name="plus" size={18} /> Yeni video</button>} />
+      {tabs}
 
       <ol className="how">
         <li><b>Oku ve kaydet</b><span>Ses Stüdyosu’nda şiirini fon müziğiyle oku.</span></li>
