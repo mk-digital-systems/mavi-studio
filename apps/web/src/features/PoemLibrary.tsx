@@ -22,7 +22,7 @@ export function PoemLibrary({ data, actions }: { data: LocalData; actions: Actio
 
   return (
     <>
-      <PageHeader title="Şiir Kütüphanem" sub="Şiir yaz, düzenle, ara ve yedekle" actions={<button className="btn primary" disabled={!ok} onClick={() => actions.create()}><Icon name="plus" size={18} /> Yeni şiir</button>} />
+      <PageHeader title="Şiirlerim" sub="Ses Stüdyosu · yalnızca şiirlerin yazılı içeriği" actions={<button className="btn primary" disabled={!ok} onClick={() => actions.create()}><Icon name="plus" size={18} /> Yeni şiir</button>} />
       {(err || data.error) && <div className="alert" role="alert">{err || data.error}</div>}
       {msg && <div className="note" role="status">{msg}</div>}
       <RecoveryBanner orphans={data.orphans} reload={data.reload} onMsg={setMsg} />
@@ -46,19 +46,20 @@ export function PoemLibrary({ data, actions }: { data: LocalData; actions: Actio
             return (
               <li key={p.id}>
                 <details className="pitem">
-                  <summary>{name}</summary>
+                  <summary>{name}{p.mix.poet ? ` — ${p.mix.poet}` : ""}</summary>
                   <div className="pitem-b">
                     <p className="pitem-text">{p.text.trim() || "Henüz metin yok"}</p>
+                    {p.readingNotes && <p className="small muted"><b>Okuma notu:</b> {p.readingNotes}</p>}
                     <div className="chips">
-                      <span className="chip">{t.length} ses denemesi</span>
-                      {p.trackId && <span className="chip">fon müziği seçili</span>}
+                      {p.mix.poet && <span className="chip">{p.mix.poet}</span>}
+                      {p.category && <span className="chip">{p.category}</span>}
                       <span className="chip">{new Date(p.updatedAt).toLocaleDateString("tr-TR")}</span>
                     </div>
                     <div className="row pcard-act">
                       <button className="btn primary" onClick={() => actions.open(p, "poem")}>Aç</button>
                       <button className="btn ghost" onClick={() => downloadBackup(p)}>Yedek</button>
                       <button className="btn ghost" aria-label={`${name} sil`} onClick={async () => {
-                        if (!confirm(`“${name}” ve tüm kayıt denemeleri bu cihazdan silinsin mi? Bu işlem geri alınamaz.`)) return;
+                        if (!confirm(`“${name}” şiiri, ses denemeleri (${t.length}) ve kayıtlı şiirleri bu cihazdan silinsin mi? Bu işlem geri alınamaz.`)) return;
                         await deleteProject(p.id); await data.reload();
                       }}><Icon name="trash" size={18} /></button>
                     </div>

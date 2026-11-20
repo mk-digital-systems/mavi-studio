@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { Project, Take } from "@siir/contracts";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import type { Performance, Project, Take } from "@siir/contracts";
 import { tr } from "./shared/tr";
 import { guard } from "./shared/prefs";
 import { Editor } from "./features/Editor";
@@ -8,13 +8,19 @@ import { RecordScreen } from "./features/RecordScreen";
 import { Review } from "./features/Review";
 import { Dashboard } from "./features/Dashboard";
 import { StudioStart } from "./features/StudioStart";
-import { VideoHub } from "./features/VideoHub";
+const VideoHub = lazy(() => import("./features/VideoHub").then((m) => ({ default: m.VideoHub })));
 import { VideoArchive } from "./features/VideoArchive";
 import { PoemLibrary } from "./features/PoemLibrary";
 import { MusicLibrary } from "./features/MusicLibrary";
 import { Recordings } from "./features/Recordings";
 import { SettingsPage } from "./features/SettingsPage";
 import { Sidebar, sectionTitle } from "./shell/Sidebar";
+import type { VideoInbox } from "./features/VideoStudio";
+const Performances = lazy(() => import("./features/Performances").then((m) => ({ default: m.Performances })));
+const LiveDesk = lazy(() => import("./features/live/LiveDesk").then((m) => ({ default: m.LiveDesk })));
+const Flows = lazy(() => import("./features/Flows").then((m) => ({ default: m.Flows })));
+const SfxLibrary = lazy(() => import("./features/SfxLibrary").then((m) => ({ default: m.SfxLibrary })));
+const BroadcastSettings = lazy(() => import("./features/BroadcastSettings").then((m) => ({ default: m.BroadcastSettings })));
 import type { Actions, StudioStep } from "./shell/types";
 import { listTakes, newProject, saveProject } from "./storage/repo";
 import { downloadBackup } from "./storage/backup";
@@ -23,7 +29,7 @@ import { getSettings, useSettings, type Section } from "./shared/settings";
 import { useLocalData } from "./shared/useLocalData";
 
 export type Draft = Project;
-export type Patch = (p: Partial<Pick<Project, "title" | "text" | "trackId" | "primaryTakeId" | "status" | "fx" | "mix" | "reading">>) => void;
+export type Patch = (p: Partial<Pick<Project, "title" | "text" | "trackId" | "primaryTakeId" | "status" | "fx" | "mix" | "reading" | "category" | "readingNotes">>) => void;
 
 const order: StudioStep[] = ["poem", "music", "record", "review"];
 const stepTitle: Record<StudioStep, string> = { poem: "Şiir", music: "Fon müziği", record: "Kayıt", review: "Dinle ve dışa aktar" };
@@ -35,6 +41,8 @@ export function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [takes, setTakes] = useState<Take[]>([]);
   const [wantVideo, setWantVideo] = useState(false);
+  const [inbox, setInbox] = useState<VideoInbox | null>(null);
+  const [liveInbox, setLiveInbox] = useState<Performance | null>(null);
   const [saveError, setSaveError] = useState("");
   const latest = useRef<Project | null>(null);
   const timer = useRef<number>(0);
@@ -84,7 +92,29 @@ export function App() {
     void open(newProject(opts?.trackId ? { trackId: opts.trackId } : undefined), "poem", { video: opts?.video });
   }, [open]);
 
-  const actions: Actions = { go: (s) => void go(s), open: (p, st, o) => void open(p, st, o), create };
+  /** Yeni Kayıt akışını başa alır: açık çalışma kaydedilir, şiir seçimi ekranı açılır. */
+  const newRecording = useCallback(async () => {
+    if (guard.recording) { alert("Kayıt sürüyor. Önce kaydı bitir."); return; }
+    await flush();
+    latest.current = null; dirty.current = false;
+    setProject(null); setTakes([]); setStep("poem"); setWantVideo(false); setSection("studio");
+    void data.reload();
+  }, [flush, data]);
+
+  /** Kayıttan / kayıtlı şiirden Video Stüdyosu'na: ses ve fon ayrı kanallar olarak gönderilir. */
+  const sendToVideo = useCallback(async (p: Project, t: Take, perf?: Performance | null) => {
+    if (guard.recording) { alert("Kayıt sürüyor. Önce kaydı bitir."); return; }
+    await flush();
+    setInbox({ project: p, take: t, performance: perf ?? null });
+    setSection("video");
+  }, [flush]);
+  const playInLive = useCallback(async (perf: Performance) => {
+    if (guard.recording) { alert("Kayıt sürüyor. Önce kaydı bitir."); return; }
+    await flush();
+    setLiveInbox(perf); setSection("live");
+  }, [flush]);
+
+  const actions: Actions = { go: (s) => void go(s), open: (p, st, o) => void open(p, st, o), create, newRecording: () => void newRecording(), sendToVideo: (p, t, perf) => void sendToVideo(p, t, perf), playInLive: (perf) => void playInLive(perf) };
 
   // Sekme gizlenince/kapanırken bekleyen kaydı yaz; kayıt sürerken veya yazım bekliyorsa uyar.
   useEffect(() => {
@@ -117,7 +147,7 @@ export function App() {
   const [announce, setAnnounce] = useState("");
   const inWizard = section === "studio" && !!project;
   useEffect(() => {
-    const label = inWizard ? `${stepTitle[step]} — ${sectionTitle("studio")}` : sectionTitle(section);
+    const label = inWizard ? `${stepTitle[step]} — Yeni Kayıt` : sectionTitle(section);
     document.title = `${label} — ${tr.brand}`;
     if (first.current) { first.current = false; return; }
     mainRef.current?.focus({ preventScroll: false });
@@ -130,12 +160,13 @@ export function App() {
     <div className={"layout" + (sidebar === "compact" ? " is-compact" : "")}>
       <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); mainRef.current?.focus(); }}>İçeriğe geç</a>
       <div className="sr" role="status" aria-live="polite">{announce}</div>
-      <Sidebar section={section} compact={sidebar === "compact"} onGo={(s) => void go(s)} />
+      <Sidebar section={section} compact={sidebar === "compact"} onGo={(s) => void go(s)} onNew={() => void newRecording()} />
       <div className="content">
         <div className="shell">
           {saveError && <div className="alert" role="alert">{saveError}</div>}
           <main id="main" ref={mainRef} tabIndex={-1}>
             <ErrorBoundary key={section + (inWizard ? step : "")}>
+              <Suspense fallback={<p className="muted" role="status">Yükleniyor…</p>}>
               {section === "home" && <Dashboard data={data} actions={actions} />}
               {section === "studio" && !project && <StudioStart data={data} actions={actions} />}
               {inWizard && project && (<>
@@ -151,14 +182,20 @@ export function App() {
                 {step === "poem" && <Editor draft={project} patch={patch} next={() => setStep("music")} />}
                 {step === "music" && <MusicPicker draft={project} patch={patch} back={() => setStep("poem")} next={() => setStep("record")} />}
                 {step === "record" && <RecordScreen draft={project} patch={patch} takes={takes} reloadTakes={reloadTakes} ensureSaved={flush} back={() => setStep("music")} next={() => setStep("review")} />}
-                {step === "review" && <Review draft={project} patch={patch} takes={takes} reloadTakes={reloadTakes} wantVideo={wantVideo} back={() => setStep("record")} />}
+                {step === "review" && <Review draft={project} patch={patch} takes={takes} reloadTakes={reloadTakes} wantVideo={wantVideo} back={() => setStep("record")} actions={actions} />}
               </>)}
-              {section === "video" && <VideoHub data={data} actions={actions} />}
+              {(section === "video" || section === "archive") && <VideoHub data={data} actions={actions} inbox={inbox} clearInbox={() => setInbox(null)} initialTab={section === "archive" ? "archive" : undefined} />}
+              {section === "performances" && <Performances data={data} actions={actions} />}
+              {section === "live" && <LiveDesk data={data} actions={actions} initialPerformance={liveInbox} onConsumed={() => setLiveInbox(null)} />}
+              {section === "flows" && <Flows data={data} actions={actions} />}
+              {section === "sfx" && <SfxLibrary />}
+              {section === "live-settings" && <BroadcastSettings />}
               {section === "poems" && <PoemLibrary data={data} actions={actions} />}
               {section === "music" && <MusicLibrary actions={actions} />}
               {section === "archive" && <VideoArchive actions={actions} />}
               {section === "recordings" && <Recordings data={data} actions={actions} />}
               {section === "settings" && <SettingsPage data={data} actions={actions} />}
+              </Suspense>
             </ErrorBoundary>
           </main>
           <footer>

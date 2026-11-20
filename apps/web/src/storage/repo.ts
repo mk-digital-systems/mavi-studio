@@ -5,6 +5,7 @@ import { sanitizeMix } from "../shared/mix";
 import { forgetSettings, getSettings } from "../shared/settings";
 import { wav24 } from "../audio/wav";
 import { deleteWholeDatabase, store, wrap } from "./db";
+import { deleteAudioDb } from "./audioDb";
 
 /** Anonim oturum kimliği: cihaza özgü rastgele değer; kişisel veri değildir. */
 export function anonymousSessionId(): string {
@@ -34,6 +35,8 @@ export async function saveProject(p: Project) {
   await done;
 }
 export async function deleteProject(id: string) {
+  const { deletePerformancesOfPoem } = await import("./performances"); // döngüsel içe aktarmayı önler
+  await deletePerformancesOfPoem(id);
   for (const t of await listTakes(id)) await deleteTake(t.id);
   const { s, done } = await store("projects", "readwrite");
   s.delete(id);
@@ -107,6 +110,6 @@ export async function sweepOrphanChunks(): Promise<number> {
   return n;
 }
 export async function wipeEverything() {
-  await deleteWholeDatabase();
+  await deleteWholeDatabase(); await deleteAudioDb();
   localStorage.removeItem("siir.sid"); forgetSettings();
 }

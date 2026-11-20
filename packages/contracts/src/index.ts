@@ -54,7 +54,10 @@ export type Project = {
   /** v2'de sonradan eklendi: eski kayıtlarda yoksa varsayılan ile açılır. */
   mix: MixSettings;
   /** Projeye özel okuma tercihi (yoksa genel stüdyo ayarı geçerli). */
-  reading?: { speed?: number };
+  reading?: { speed?: number; fontScale?: number };
+  /** Şiirlerim: sonradan eklenen yazı alanları (eski kayıtlarda yok). */
+  category?: string;
+  readingNotes?: string;
   status: "draft" | "recorded";
   createdAt: string;
   updatedAt: string;
@@ -173,4 +176,31 @@ export type VideoStatus = {
   width?: number; height?: number; durationMs?: number;
   /** Engellemeyen uyarılar (ör. platform süre sınırı, yön uyuşmazlığı). */
   warnings?: string[];
+};
+
+// ---------- Kayıtlı Şiirler (tamamlanmış performanslar) ----------
+/**
+ * Tamamlanmış şiir performansı: şiir, seçilen deneme ve fon yalnızca KİMLİKLE bağlanır (veri çoğaltılmaz).
+ * Mikrofon sesi ve fon hiçbir zaman tek dosyada birleştirilip saklanmaz; yalnızca önizleme/dışa aktarmada karıştırılır.
+ */
+export type Performance = {
+  id: string;
+  schemaVersion: 1;
+  /** Şiirin (Project) kimliği. */
+  poemId: string;
+  selectedTakeId: string;
+  /** İşlenmiş sesin önbellek anahtarı (yeniden üretilebilir türev; yoksa null). */
+  processedVoiceId: string | null;
+  /** Fon yoksa null. Katalog (trk_) ya da yüklenen (loc_) parça kimliği. */
+  backgroundTrackId: string | null;
+  mixSettings: MixSettings;
+  /** Atmosfer ve efekt ayarlarının o andaki hali. */
+  fx: FxSettings;
+  teleprompterSettings: { speed: number; fontScale: number };
+  captionTiming: { timings: LineTiming[]; captions: CaptionCue[] };
+  title: string;
+  poet: string;
+  videoProjectId: string | null;
+  createdAt: string;
+  updatedAt: string;
 };

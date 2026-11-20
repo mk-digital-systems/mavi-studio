@@ -3,28 +3,31 @@ import { Icon } from "../shell/icons";
 import type { Actions } from "../shell/types";
 import type { LocalData } from "../shared/useLocalData";
 import { EmptyState, PageHeader, ProjectCard } from "./parts";
-import { VideoStudio } from "./VideoStudio";
+import { VideoStudio, type VideoInbox } from "./VideoStudio";
+import { VideoArchive } from "./VideoArchive";
 
 /** Video Editörü: şiirli ses çalışmalarından video üretimine giriş. Yalnızca gerçekten var olan özellikleri sunar. */
-export function VideoHub({ data, actions }: { data: LocalData; actions: Actions }) {
-  const [mode, setMode] = useState<"studio" | "quick">("studio");
+export function VideoHub({ data, actions, inbox, clearInbox, initialTab }: { data: LocalData; actions: Actions; inbox?: VideoInbox | null; clearInbox?: () => void; initialTab?: "archive" }) {
+  const [mode, setMode] = useState<"studio" | "quick" | "archive">(initialTab ?? "studio");
   const ready = (data.projects ?? []).filter((p) => (data.takes[p.id] ?? []).length > 0);
   const tabs = (
     <div className="vs-tabs" role="group" aria-label="Video yöntemi">
       <button className="btn" aria-pressed={mode === "studio"} onClick={() => setMode("studio")}>Video atölyesi</button>
       <button className="btn" aria-pressed={mode === "quick"} onClick={() => setMode("quick")}>Şiirden hızlı video</button>
+      <button className="btn" aria-pressed={mode === "archive"} onClick={() => setMode("archive")}>Video Arşivi</button>
     </div>
   );
+  if (mode === "archive") return (<>{tabs}<VideoArchive actions={actions} /></>);
   if (mode === "studio") return (
     <>
-      <PageHeader title="Video Editörü" sub="Fotoğraf ve videolarla düzenle, istersen şiir sesini ekle" />
+      <PageHeader title="Video Stüdyosu" sub="Fotoğraf ve videolarla düzenle, istersen şiir sesini ekle" />
       {tabs}
-      <VideoStudio data={data} />
+      <VideoStudio data={data} inbox={inbox} clearInbox={clearInbox} />
     </>
   );
   return (
     <>
-      <PageHeader title="Video Editörü" sub="Şiirinden paylaşılabilir video oluştur" actions={<button className="btn primary" onClick={() => actions.create({ video: true })}><Icon name="plus" size={18} /> Yeni video</button>} />
+      <PageHeader title="Video Stüdyosu" sub="Şiirinden paylaşılabilir video oluştur" actions={<button className="btn primary" onClick={() => actions.create({ video: true })}><Icon name="plus" size={18} /> Yeni video</button>} />
       {tabs}
 
       <ol className="how">

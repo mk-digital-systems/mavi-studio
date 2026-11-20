@@ -15,6 +15,10 @@ const P = {
   stop: "M7 7h10v10H7z",
   folder: "M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
   download: "M12 4v11M7 11l5 5 5-5M5 20h14",
+  live: "M5 12a7 7 0 0 1 14 0M8 12a4 4 0 0 1 8 0M12 12v.01M3.5 12a8.5 8.5 0 0 1 17 0M12 15v6",
+  list: "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01",
+  bolt: "M13 3L5 14h6l-1 7 8-11h-6z",
+  chevron: "M6 9l6 6 6-6",
   trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13",
 } as const;
 export type IconName = keyof typeof P;

@@ -241,3 +241,5 @@ dialog::backdrop{background:#0c0d10cc}
 .rec-meter{height:6px;border-radius:4px;background:#1a1b1e;overflow:hidden;margin-bottom:8px}.rec-meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2fd4c6,#ffd27a,#ff6b6b)}
 .voice-box .field{margin:8px 0}
 #lib-audio{overflow:auto}
+
+#audioLanes{padding:4px 0}.tl-audio{height:22px;border-radius:6px;margin:3px 0;font-size:11px;font-weight:600;display:flex;align-items:center;padding:0 8px;overflow:hidden;white-space:nowrap}.tl-audio.nar{background:#e0a458;color:#2a1a05}.tl-audio.amb{background:#5aa7e5;color:#06223d}.tl-audio.off{opacity:.35;text-decoration:line-through}.amb-extra{flex-wrap:wrap;gap:10px}.amb-extra input[type=number]{width:70px}

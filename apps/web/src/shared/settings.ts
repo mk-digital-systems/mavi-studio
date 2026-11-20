@@ -8,8 +8,8 @@ import { defaultMix, sanitizeMix } from "./mix";
  * (Project.fx, Project.mix, Project.reading) ve bu varsayılanları yalnızca YENİ proje açılırken devralır.
  * Burada yalnızca motorlarımızın GERÇEKTEN desteklediği ayarlar bulunur; desteklenmeyenler arayüzde ayrıca belirtilir.
  */
-export type Section = "home" | "studio" | "video" | "poems" | "music" | "archive" | "recordings" | "settings";
-export const SECTIONS: Section[] = ["home", "studio", "video", "poems", "music", "archive", "recordings", "settings"];
+export type Section = "home" | "studio" | "video" | "poems" | "music" | "archive" | "recordings" | "settings" | "performances" | "live" | "flows" | "sfx" | "live-settings";
+export const SECTIONS: Section[] = ["home", "studio", "video", "poems", "music", "archive", "recordings", "settings", "performances", "live", "flows", "sfx", "live-settings"];
 
 export type StudioSettings = {
   schemaVersion: 1;
@@ -20,7 +20,28 @@ export type StudioSettings = {
   music: { favorites: string[] };
   reading: { speed: number; fontScale: number; lineHeight: number; autoScroll: boolean };
   appearance: { theme: "system" | "dark" | "light"; textScale: number; sidebar: "full" | "compact"; startSection: Section };
+  /** Yayın Stüdyosu varsayılanları (ses masası). */
+  broadcast: BroadcastSettings;
 };
+
+export type ChannelId = "mic" | "music" | "voice" | "sfx";
+export type BroadcastSettings = {
+  volumes: Record<ChannelId, number>;      // 0–1 başlangıç seviyeleri
+  duck: { enabled: boolean; amountDb: number; thresholdDb: number };  // konuşma önceliği
+  micToOutput: boolean;                     // mikrofon ana çıkışa verilsin mi (kulaklık gerekir)
+  darkMode: boolean;                        // karanlık yayın modu
+};
+export const defaultBroadcast = (): BroadcastSettings => ({
+  volumes: { mic: 1, music: 0.5, voice: 1, sfx: 0.7 }, duck: { enabled: true, amountDb: 12, thresholdDb: -42 }, micToOutput: false, darkMode: true,
+});
+export function sanitizeBroadcast(raw: unknown): BroadcastSettings {
+  const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, any>, d = defaultBroadcast(), v = o.volumes ?? {}, k = o.duck ?? {};
+  return {
+    volumes: { mic: num(v.mic, 0, 1, d.volumes.mic), music: num(v.music, 0, 1, d.volumes.music), voice: num(v.voice, 0, 1, d.volumes.voice), sfx: num(v.sfx, 0, 1, d.volumes.sfx) },
+    duck: { enabled: bool(k.enabled, d.duck.enabled), amountDb: num(k.amountDb, 0, 30, d.duck.amountDb), thresholdDb: num(k.thresholdDb, -70, -15, d.duck.thresholdDb) },
+    micToOutput: bool(o.micToOutput, false), darkMode: bool(o.darkMode, true),
+  };
+}
 
 export const defaultSettings = (): StudioSettings => ({
   schemaVersion: 1,
@@ -30,6 +51,7 @@ export const defaultSettings = (): StudioSettings => ({
   music: { favorites: [] },
   reading: { speed: 28, fontScale: 1, lineHeight: 1.5, autoScroll: true },
   appearance: { theme: "system", textScale: 1, sidebar: "full", startSection: "home" },
+  broadcast: defaultBroadcast(),
 });
 
 const num = (v: unknown, min: number, max: number, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : d);
@@ -54,6 +76,7 @@ export function sanitizeSettings(raw: unknown): StudioSettings {
     },
     music: { favorites: fav },
     reading: { speed: num(r.speed, 8, 90, d.reading.speed), fontScale: num(r.fontScale, 0.8, 1.6, 1), lineHeight: num(r.lineHeight, 1.3, 2, 1.5), autoScroll: bool(r.autoScroll, true) },
+    broadcast: sanitizeBroadcast(o.broadcast),
     appearance: {
       theme: oneOf(p.theme, ["system", "dark", "light"] as const, "system"), textScale: num(p.textScale, 0.9, 1.3, 1),
       sidebar: oneOf(p.sidebar, ["full", "compact"] as const, "full"), startSection: oneOf(p.startSection, SECTIONS, "home"),

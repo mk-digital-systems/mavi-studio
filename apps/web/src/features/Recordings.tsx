@@ -28,7 +28,7 @@ function Row({ p, t, i, actions }: { p: Project; t: Take; i: number; actions: Ac
   return (
     <div className="take">
       <div style={{ minWidth: 150 }}>
-        <b>Deneme {i + 1}</b> {p.primaryTakeId === t.id && <span className="badge">ANA</span>}
+        <b>Deneme {i + 1}</b> {p.primaryTakeId === t.id && <span className="badge">ANA</span>} <span className="chip">{t.fx?.preset ?? p.fx.preset}</span>
         <div className="muted small">{fmt(t.durationMs)} · {new Date(t.createdAt).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })}{t.clipped ? " · ⚠ taşma" : ""}</div>
       </div>
       {url ? <audio ref={el} controls autoPlay src={url} aria-label={`${p.title || "Adsız şiir"} — deneme ${i + 1}`} onPlay={() => claim("rec-" + t.id, () => el.current?.pause())} />
@@ -48,13 +48,13 @@ export function Recordings({ data, actions }: { data: LocalData; actions: Action
   const groups = (data.projects ?? []).filter((p) => (data.takes[p.id] ?? []).length > 0);
   return (
     <>
-      <PageHeader title="Ses Kayıtlarım" sub="Kaydedilmiş şiir okumaların ve farklı denemeler" />
+      <PageHeader title="Kayıt Denemelerim" sub="Ses Stüdyosu · mikrofonla aldığın ham denemeler (şiire bağlı)" />
       {data.error && <div className="alert" role="alert">{data.error}</div>}
       {msg && <div className="note" role="status">{msg}</div>}
       <RecoveryBanner orphans={data.orphans} reload={data.reload} onMsg={setMsg} />
 
       {data.projects === null ? <p className="muted">Yükleniyor…</p> : groups.length === 0 ? (
-        <EmptyState icon="wave" title="Henüz ses kaydın yok" action={<button className="btn primary" onClick={() => actions.go("studio")}>Ses Stüdyosu’na git</button>}>
+        <EmptyState icon="wave" title="Henüz kayıt denemen yok" action={<button className="btn primary" onClick={() => actions.go("studio")}>Ses Stüdyosu’na git</button>}>
           Bir şiiri okuyup kaydettiğinde denemelerin burada, şiirinin altında toplanır.
         </EmptyState>
       ) : groups.map((p) => (

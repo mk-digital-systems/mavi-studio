@@ -129,7 +129,7 @@ export function ExportPanel({ draft, patch, takes, defaultForVideo }: Props) {
   if (done.length === 0) return null;
   return (
     <>
-    <section className="card" aria-labelledby="ex-h">
+    <section className="card" id="export-sec" aria-labelledby="ex-h">
       <h2 id="ex-h">Dışa aktar</h2>
       <p className="muted small">Efektler ve fon müziği dışa aktarmada kalıcı olarak uygulanır. Ham fon müziği hiçbir zaman indirilemez; yalnızca şiir sesinle birleşmiş son kayıt verilir.</p>
 

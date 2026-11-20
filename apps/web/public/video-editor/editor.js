@@ -306,7 +306,7 @@ function renderTimeline(){
     const m=media.get(s.id), thumb=m?(s.kind==='video'?`<video src="${esc(m.url)}" muted preload="metadata"></video>`:`<img src="${esc(m.url)}" alt="">`):`<span class="title-thumb" style="background:${s.background}">${s.kind==='title'?'T':'?'}</span>`;
     return `<button class="scene-card${s.id===selected?' selected':''}" draggable="true" data-id="${esc(s.id)}" aria-label="Sahne ${i+1}: ${esc(s.name)}, ${s.dur} saniye" aria-pressed="${s.id===selected}" style="width:${Math.max(18,s.dur*tlPps)}px">${thumb}<span class="card-meta"><span>${i+1} · ${s.kind==='video'?'Video':s.kind==='title'?'Başlık':'Fotoğraf'}</span><b>${s.dur} sn</b></span><span class="resize-handle" data-resize="${esc(s.id)}" title="Süreyi ayarlamak için sürükle" aria-hidden="true"></span></button>`;
   }).join(''):'<p class="timeline-empty">Henüz sahne yok. Fotoğraflarını ekle, sırala, hikâyeni oluştur.</p>';
-  $('#sceneTrack').dataset.pps=tlPps;layoutCanvas();renderRuler();renderTextLanes();
+  $('#sceneTrack').dataset.pps=tlPps;layoutCanvas();renderRuler();renderTextLanes();renderAudioLanes();
   $('#sceneCount').textContent=state.scenes.length+' sahne';updateDurationUI();$('#scrubEnd').textContent=fmt(total);$('#scrubber').max=total;
   $('#exportVideo').disabled=!total;$('#playAll').disabled=!total;$('#playScene').disabled=!selectedScene();$('#emptyPreview').hidden=!!total;
 }
@@ -618,7 +618,14 @@ $('#voiceBox').addEventListener('input',e=>{
 $('#voiceBox').addEventListener('change',()=>history.endGroup());
 $('#voiceBox').addEventListener('click',e=>{const b=e.target.closest('[data-voiceplay]');if(b)safely(()=>playVoice(b.dataset.voiceplay))();});
 function renderAudio(){renderVoice();
-  $('#audioControls').innerHTML=['nar','amb'].map(w=>`<div class="audio-row"><strong>${w==='nar'?'Anlatım':'Müzik / ortam'}</strong><button data-audio="${w}">${w==='amb'&&parent!==window?'Fon müziklerimden seç':'Dosya Seç'}</button><span class="filename" title="${esc(state[w+'Name'])}">${esc(state[w+'Name']||'Ses eklenmedi')}</span><input data-volume="${w}" aria-label="${w==='nar'?'Anlatım':'Müzik'} ses düzeyi" type="range" min="0" max="100" value="${Math.round(state.vol[w]*100)}"><label class="loop-label">${w==='amb'?`<input id="ambLoop" type="checkbox" ${state.ambLoop?'checked':''}>Tekrarla`:'Baştan başlar'}</label><button class="remove-audio" data-remove-audio="${w}" aria-label="${w==='nar'?'Anlatımı':'Müziği'} kaldır" ${audioFiles.has(w)?'':'disabled'}>×</button></div>`).join('');
+  $('#audioControls').innerHTML=['nar','amb'].map(w=>`<div class="audio-row"><strong>${w==='nar'?'Anlatım':'Müzik / ortam'}</strong><button data-audio="${w}">${parent!==window?(w==='amb'?'Fon müziklerimden seç':'Şiir kayıtlarımdan seç'):'Dosya Seç'}</button><span class="filename" title="${esc(state[w+'Name'])}">${esc(state[w+'Name']||'Ses eklenmedi')}</span><input data-volume="${w}" aria-label="${w==='nar'?'Anlatım':'Müzik'} ses düzeyi" type="range" min="0" max="100" value="${Math.round(state.vol[w]*100)}"><label class="loop-label">${w==='amb'?`<input id="ambLoop" type="checkbox" ${state.ambLoop?'checked':''}>Tekrarla`:'Baştan başlar'}</label><button class="remove-audio" data-remove-audio="${w}" aria-label="${w==='nar'?'Anlatımı':'Müziği'} kaldır" ${audioFiles.has(w)?'':'disabled'}>×</button></div>`).join('')+ambExtras();
+  renderAudioLanes();
+}
+function ambExtras(){return `<div class="audio-row amb-extra"><label class="loop-label"><input id="ambOn" type="checkbox" ${state.ambOn===false?'':'checked'}>Fonlu video (fon dışa aktarmaya girer)</label><label class="loop-label">Fon başlangıcı (sn)<input id="ambStart" type="number" min="0" max="600" step="1" value="${state.ambStart||0}"></label><label class="loop-label">Giriş yumuşatma (sn)<input id="ambFadeIn" type="number" min="0" max="10" step=".5" value="${state.ambFadeIn||0}"></label><label class="loop-label">Çıkış yumuşatma (sn)<input id="ambFadeOut" type="number" min="0" max="10" step=".5" value="${state.ambFadeOut||0}"></label></div>`;}
+function renderAudioLanes(){
+  const el=$('#audioLanes');if(!el)return;
+  const rows=[['nar','Anlatım'],['amb','Fon']].map(([k,label])=>{const a=audioFiles.get(k);if(!a||!a.buffer)return '';const off=k==='amb'&&state.ambOn===false,dur=a.buffer.duration,len=k==='amb'?(state.ambLoop?Math.max(total,dur):Math.max(1,dur-(state.ambStart||0))):dur,tag=k==='amb'?(off?' · kapalı':'')+(state.ambStart?` · ${state.ambStart} sn’den`:''):'';return `<div class="tl-audio ${k}${off?' off':''}" style="width:${Math.max(40,len*tlPps)}px" title="${label}: ${esc(state[k+'Name']||'')} · ${fmtT(dur)}"><span>${label} · ${esc(state[k+'Name']||'')}${tag}</span></div>`;}).join('');
+  el.innerHTML=rows||'<p class="lane-hint">Anlatım ve fon şeritleri, ses eklenince burada ayrı kanallar olarak görünür.</p>';
 }
 function applyFont(c,s){
   const p=styleOf(s);
@@ -939,7 +946,7 @@ async function ensureAudio(resume=true){
 async function decodeAudio(file){await ensureAudio(false);return audioContext.decodeAudioData(await file.arrayBuffer());}
 function stopSounds(){for(const {source,gain} of scheduled){try{source.stop();}catch{}source.disconnect();gain.disconnect();}scheduled=[];for(const m of media.values())if(m.el instanceof HTMLVideoElement){m.el.pause();const node=videoNodes.get(m.el);if(node)node.gain.gain.value=0;}}
 function scheduleSounds(offset,end,epoch){
-  for(const [w,a] of audioFiles){const loop=w==='amb'&&state.ambLoop,b=a.buffer;if(!b||(!loop&&offset>=b.duration))continue;const src=audioContext.createBufferSource(),gain=audioContext.createGain();src.buffer=b;src.loop=loop;gain.gain.value=state.vol[w];src.connect(gain);gain.connect(audioDestination);gain.connect(monitorGain);const duration=loop?end-offset:Math.min(end-offset,b.duration-offset);if(duration>0){src.start(epoch,loop?offset%b.duration:offset,duration);scheduled.push({source:src,gain});}}
+  for(const [w,a] of audioFiles){const amb=w==='amb';if(amb&&state.ambOn===false)continue;const loop=amb&&state.ambLoop,b=a.buffer,bo=amb?(state.ambStart||0):0;if(!b||(!loop&&offset+bo>=b.duration))continue;const src=audioContext.createBufferSource(),gain=audioContext.createGain(),vol=state.vol[w];src.buffer=b;src.loop=loop;gain.gain.value=vol;if(amb){const fi=state.ambFadeIn||0,fo=state.ambFadeOut||0;if(fi>0&&offset<fi){gain.gain.setValueAtTime(vol*offset/fi,epoch);gain.gain.linearRampToValueAtTime(vol,epoch+(fi-offset));}if(fo>0){gain.gain.setValueAtTime(vol,epoch+Math.max(0,end-fo-offset));gain.gain.linearRampToValueAtTime(0,epoch+Math.max(0,end-offset));}}src.connect(gain);gain.connect(audioDestination);gain.connect(monitorGain);const duration=loop?end-offset:Math.min(end-offset,b.duration-offset-bo);if(duration>0){src.start(epoch,loop?(offset+bo)%b.duration:offset+bo,duration);scheduled.push({source:src,gain});}}
 }
 function videoNode(el){let n=videoNodes.get(el);if(!n){const source=audioContext.createMediaElementSource(el),gain=audioContext.createGain();source.connect(gain);gain.connect(audioDestination);gain.connect(monitorGain);n={source,gain};videoNodes.set(el,n);el.muted=false;}return n;}
 function syncVideos(t,run){const e=current(t);for(const [id,m]of media){const el=m.el;if(!(el instanceof HTMLVideoElement))continue;const active=e?.sc.id===id,target=active?Math.min(Math.max(0,t-e.start),Math.max(0,el.duration-.035)):0;
@@ -1115,7 +1122,7 @@ async function clipAudio(m){
 // Ses karışımına girecek parçalar. Başlangıç zamanı ile açılış/kapanış süreleri parametredir; arayüzü sonra eklenecek (P2-02).
 async function audioTracks(){
   const tracks=[];
-  for(const [w,a] of audioFiles)if(a.buffer)tracks.push({buffer:a.buffer,gain:state.vol[w],start:0,offset:0,loop:w==='amb'&&state.ambLoop,fadeIn:0,fadeOut:0});
+  for(const [w,a] of audioFiles){if(!a.buffer)continue;const amb=w==='amb';if(amb&&state.ambOn===false)continue;tracks.push({buffer:a.buffer,gain:state.vol[w],start:0,offset:amb?(state.ambStart||0):0,loop:amb&&state.ambLoop,fadeIn:amb?(state.ambFadeIn||0):0,fadeOut:amb?(state.ambFadeOut||0):0});}
   for(const e of TL){
     const s=e.sc,m=media.get(s.id);if(s.kind!=='video'||!s.sound||!s.volume||!m)continue;
     const buffer=await clipAudio(m);
@@ -1343,15 +1350,30 @@ canvas.onpointerup=canvas.onpointercancel=()=>{if(textDrag){textDrag=null;histor
 $('#scrubber').oninput=e=>{const wanted=+e.target.value;pause();time=wanted;selected=current()?.sc.id||null;renderTimeline();renderInspector();syncVideos(time,false);render();};
 $('#playScene').onclick=safely(()=>play('scene'));$('#playAll').onclick=safely(()=>play('all'));$('#pause').onclick=pause;
 document.addEventListener('keydown',e=>{if(e.code!=='Space'||e.ctrlKey||e.altKey||e.metaKey||/^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(e.target.tagName)||document.querySelector('dialog[open]'))return;e.preventDefault();if(playing)pause();else safely(()=>play('all'))();});
-$('#audioControls').onclick=safely(async e=>{const pick=e.target.closest('[data-audio]'),remove=e.target.closest('[data-remove-audio]');if(pick){if(pick.dataset.audio==='amb'&&parent!==window){parent.postMessage({type:'mk:pick-music'},location.origin);return;}$('#audioPicker').dataset.which=pick.dataset.audio;$('#audioPicker').click();}if(remove){pause();const w=remove.dataset.removeAudio;audioFiles.delete(w);delete state.audioAssets[w];state[w+'Name']='';changed();renderAudio();}});
+$('#audioControls').onclick=safely(async e=>{const pick=e.target.closest('[data-audio]'),remove=e.target.closest('[data-remove-audio]');if(pick){if(parent!==window){parent.postMessage({type:pick.dataset.audio==='amb'?'mk:pick-music':'mk:pick-voice'},location.origin);return;}$('#audioPicker').dataset.which=pick.dataset.audio;$('#audioPicker').click();}if(remove){pause();const w=remove.dataset.removeAudio;audioFiles.delete(w);delete state.audioAssets[w];state[w+'Name']='';changed();renderAudio();}});
 $('#audioPicker').onchange=safely(async e=>{const f=e.target.files[0],w=e.target.dataset.which,epoch=projectEpoch;e.target.value='';if(!f)return;const a=await makeAudio(f,w);if(epoch!==projectEpoch)return;pause();audioFiles.set(w,a);state.audioAssets[w]=registerAsset(f,'audio');assets.get(state.audioAssets[w]).buffer=a.raw;state[w+'Name']=f.name;changed();renderAudio();});
 // Üst sayfadan (Mavi Stüdyo) gelen şiir kaydını anlatım sesi olarak ekler. Yalnızca aynı kaynaktan kabul edilir.
 addEventListener('message',safely(async e=>{const d=e.data;if(e.origin!==location.origin||!d||d.type!=='mk:add-audio'||!(d.blob instanceof Blob))return;
   const w=d.slot==='amb'?'amb':'nar',epoch=projectEpoch,f=new File([d.blob],String(d.name||(w==='amb'?'fon-muzigi.mp3':'siir-kaydi.wav')),{type:d.blob.type||'audio/wav'}),a=await makeAudio(f,w);
   if(epoch!==projectEpoch)return;pause();audioFiles.set(w,a);state.audioAssets[w]=registerAsset(f,'audio');assets.get(state.audioAssets[w]).buffer=a.raw;state[w+'Name']=f.name;changed();renderAudio();
   toast(w==='amb'?'Fon müziği eklendi.':'Şiir kaydı anlatım sesi olarak eklendi.');parent!==window&&parent.postMessage({type:'mk:audio-added',slot:w,name:f.name},location.origin);}));
+addEventListener('message',safely(async e=>{const d=e.data;if(e.origin!==location.origin||!d||d.type!=='mk:import-performance'||!(d.voice instanceof Blob))return;
+  const epoch=projectEpoch,vf=new File([d.voice],String(d.voiceName||'siir.wav'),{type:d.voice.type||'audio/wav'}),va=await makeAudio(vf,'nar');
+  let mf=null,ma=null;if(d.music instanceof Blob){mf=new File([d.music],String(d.musicName||'fon.mp3'),{type:d.music.type||'audio/mpeg'});ma=await makeAudio(mf,'amb');}
+  if(epoch!==projectEpoch)return;pause();
+  audioFiles.set('nar',va);state.audioAssets.nar=registerAsset(vf,'audio');assets.get(state.audioAssets.nar).buffer=va.raw;state.narName=vf.name;
+  if(ma){audioFiles.set('amb',ma);state.audioAssets.amb=registerAsset(mf,'audio');assets.get(state.audioAssets.amb).buffer=ma.raw;state.ambName=mf.name;const c=d.musicCfg||{};state.vol.amb=clamp(+c.volume||.35,0,1);state.ambStart=Math.max(0,+c.startSec||0);state.ambFadeIn=Math.max(0,+c.fadeInSec||0);state.ambFadeOut=Math.max(0,+c.fadeOutSec||0);state.ambOn=true;state.ambLoop=true;}
+  else{audioFiles.delete('amb');delete state.audioAssets.amb;state.ambName='';}
+  state.name=(String(d.title||'Şiir')+(d.poet?' — '+d.poet:'')).slice(0,100);
+  state.performance={title:String(d.title||''),poet:String(d.poet||''),atmosphere:String(d.atmosphere||''),performanceId:d.performanceId||null,mix:d.mix||null};
+  if(!state.scenes.length){const dur=Math.min(240,Math.max(10,Math.ceil(va.raw.duration+1)));state.scenes.push({...defaults(),kind:'title',name:String(d.title||'Şiir').slice(0,60),dur});}
+  timeline();state.texts=state.texts||[];
+  for(const c of (Array.isArray(d.cues)?d.cues.slice(0,28):[])){if(totalTexts()>=MAX_TEXTS)break;const st=r1(clamp(+c.start||0,0,Math.max(0,total-.5)));state.texts.push(normalizeText({text:String(c.text||'').slice(0,600),textPosition:'middle',textY:50,textStart:st,textDur:r1(Math.max(.5,Math.min((+c.end||0)-(+c.start||0)||3,total-st)))}));}
+  changed();refresh();renderAudio();toast('Şiir sesi ve fon ayrı kanallar olarak aktarıldı.');
+  parent!==window&&parent.postMessage({type:'mk:performance-imported',performanceId:d.performanceId||null,videoProjectId:state.id},location.origin);}));
+try{if(localStorage.getItem('mk-debug')==='1')window.__mk={get state(){return state},audioFiles,audioTracks,renderAudioLanes};}catch{}
 parent!==window&&parent.postMessage({type:'mk:ready'},location.origin);
-$('#audioControls').oninput=e=>{const w=e.target.dataset.volume;if(w){pause();state.vol[w]=+e.target.value/100;changed('volume:'+w);}if(e.target.id==='ambLoop'){pause();state.ambLoop=e.target.checked;changed();}};
+$('#audioControls').oninput=e=>{const w=e.target.dataset.volume;if(w){pause();state.vol[w]=+e.target.value/100;changed('volume:'+w);}if(e.target.id==='ambLoop'){pause();state.ambLoop=e.target.checked;changed();renderAudioLanes();}if(e.target.id==='ambOn'){pause();state.ambOn=e.target.checked;changed();renderAudioLanes();}if(['ambStart','ambFadeIn','ambFadeOut'].includes(e.target.id)){pause();state[e.target.id]=Math.max(0,+e.target.value||0);changed();renderAudioLanes();}};
 $('#audioControls').onchange=()=>history.endGroup();
 $('#projectName').oninput=e=>{state.name=e.target.value||'İsimsiz proje';changed('project-name');};$('#projectName').onblur=()=>history.endGroup();
 $('#saveProject').onclick=saveProject;$('#openProject').onclick=safely(showProjects);

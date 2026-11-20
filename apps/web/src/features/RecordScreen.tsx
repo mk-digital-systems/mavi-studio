@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Take } from "@siir/contracts";
 import type { Draft, Patch } from "../App";
 import { MicRecorder, MAX_MS, type RecResult } from "../audio/recorder";
-import { PreviewPlayer } from "../audio/preview";
+import { PreviewPlayer, volumeFor } from "../audio/preview";
+import { applyPreset, PRESET_ORDER, PRESETS } from "../audio/fx/settings";
+import { sanitizeMix } from "../shared/mix";
+import { noteMusicUsed } from "../shared/recent";
 import { tr } from "../shared/tr";
 import { fmt, parsePoem } from "../shared/util";
 import { guard } from "../shared/prefs";
@@ -27,6 +30,8 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
   const prefs = useRef(getSettings());
   const take = useRef<Take | null>(null);
   const holdUntil = useRef(0);
+  const [musicOff, setMusicOff] = useState(false);
+  const [tryMusic, setTryMusic] = useState(false);
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [err, setErr] = useState("");
@@ -40,6 +45,7 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
   const [elapsed, setElapsed] = useState(0);
   const [speed, setSpeed] = useState(draft.reading?.speed ?? prefs.current.reading.speed);
   const [autoScroll, setAutoScroll] = useState(prefs.current.reading.autoScroll);
+  const [fontScale, setFontScale] = useState(draft.reading?.fontScale ?? prefs.current.reading.fontScale);
   const [fs, setFs] = useState(false);
   const [monitor, setMonitor] = useState(false);
   const [bgWarn, setBgWarn] = useState("");
@@ -49,6 +55,11 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
   const live = useRef({ draft, takes, patch, reloadTakes });
   live.current = { draft, takes, patch, reloadTakes };
   const poem = parsePoem(draft.text);
+  const gain = draft.mix.music.gainDb, startAt = draft.mix.music.startOffsetSec;
+  const setMusicMix = (p: Partial<typeof draft.mix.music>) => patch({ mix: sanitizeMix({ ...draft.mix, music: { ...draft.mix.music, ...p } }) });
+  const setReading = (p: { speed?: number; fontScale?: number }) => patch({ reading: { ...draft.reading, ...p } });
+  // Müziğin kulaklıktaki sesi, ayardaki seviyeye bağlıdır (kayıt sırasında da değiştirilebilir).
+  useEffect(() => { music.current.setVolume(volumeFor(gain)); }, [gain]);
 
   const refreshDevices = useCallback(async () => {
     setDevices((await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput"));
@@ -149,7 +160,8 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
       };
       await putTake(t); take.current = t;
       rec.current.sink = (bytes, seq) => putChunk(t.id, seq, bytes);
-      if (draft.trackId) await music.current.play(draft.trackId).catch(() => setInfo("Fon müziği çalınamadı; kayıt müziksiz devam ediyor."));
+      setMusicOff(false); setTryMusic(false); music.current.stop(); music.current.setVolume(volumeFor(draft.mix.music.gainDb));
+      if (draft.trackId) { noteMusicUsed(draft.trackId); await music.current.play(draft.trackId, draft.mix.music.startOffsetSec).catch(() => setInfo("Fon müziği çalınamadı; kayıt müziksiz devam ediyor.")); }
       await rec.current.start();
       guard.recording = true; void wakeLock.acquire(); // ekran uyumasın
       holdUntil.current = performance.now() + HOLD_MS;
@@ -159,10 +171,10 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
       setErr(tr.errors.generic); setFs(false); setPhase("ready");
     }
   };
-  const pause = () => { rec.current.pause(); music.current.stop(); setPhase("paused"); };
+  const pause = () => { rec.current.pause(); music.current.pause(); setPhase("paused"); };
   const resume = () => {
     rec.current.resume();
-    if (draft.trackId) void music.current.play(draft.trackId).catch(() => {});
+    if (draft.trackId && !musicOff) void music.current.resume().catch(() => {});
     setPhase("recording");
   };
   const again = async () => { setPhase("idle"); setErr(""); await open(); };
@@ -176,6 +188,12 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
     return () => clearTimeout(t);
   }, [phase]);
   const active = phase === "recording" || phase === "paused";
+  const toggleTry = async () => {
+    if (tryMusic) { music.current.stop(); setTryMusic(false); return; }
+    music.current.setVolume(volumeFor(gain));
+    try { await music.current.play(draft.trackId!, startAt); setTryMusic(true); } catch { setInfo("Fon müziği çalınamadı."); }
+  };
+  const fadeMusic = () => { music.current.fadeOut(2500); setMusicOff(true); };
   const pct = Math.max(0, Math.min(100, ((level + 60) / 60) * 100));
   const nearLimit = elapsed > MAX_MS - 60_000;
 
@@ -262,6 +280,43 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
         )}
       </section>
 
+      {(phase === "idle" || phase === "ready") && (
+        <section className="card" aria-labelledby="prep-h">
+          <h2 id="prep-h" className="h3">Kayıt hazırlığı</h2>
+          <div className="sliders">
+            <div>
+              <label htmlFor="prep-atm">Ses atmosferi</label>
+              <select id="prep-atm" value={draft.fx.preset} onChange={(e) => patch({ fx: applyPreset(draft.fx, e.target.value as typeof draft.fx.preset) })}>
+                {PRESET_ORDER.map((id) => <option key={id} value={id}>{PRESETS[id].label}</option>)}
+              </select>
+              <div className="small muted">Kaydın üstüne uygulanır; kayıttan sonra değiştirebilirsin.</div>
+            </div>
+            <div>
+              <label htmlFor="prep-spd">Teleprompter hızı: <b>{speed}</b></label>
+              <input id="prep-spd" type="range" min={8} max={90} value={speed} onChange={(e) => { setSpeed(+e.target.value); setReading({ speed: +e.target.value }); }} />
+            </div>
+            <div>
+              <label htmlFor="prep-fs">Yazı büyüklüğü: <b>{Math.round(fontScale * 100)}%</b></label>
+              <input id="prep-fs" type="range" min={80} max={160} step={5} value={Math.round(fontScale * 100)} onChange={(e) => { const v = +e.target.value / 100; setFontScale(v); setReading({ fontScale: v }); }} />
+            </div>
+            {draft.trackId ? (<>
+              <div>
+                <label htmlFor="prep-gain">Fon ses seviyesi: <b>{gain} dB</b></label>
+                <input id="prep-gain" type="range" min={-40} max={0} step={1} value={gain} onChange={(e) => setMusicMix({ gainDb: +e.target.value })} />
+                <div className="small muted">Kulaklıkta duyduğun ve son mikste kullanılan seviye.</div>
+              </div>
+              <div>
+                <label htmlFor="prep-start">Fon başlangıç noktası: <b>{startAt} sn</b></label>
+                <input id="prep-start" type="range" min={0} max={120} step={1} value={startAt} onChange={(e) => { setMusicMix({ startOffsetSec: +e.target.value }); if (tryMusic) { music.current.stop(); setTryMusic(false); } }} />
+                <div className="small muted">Parçanın kaçıncı saniyesinden başlasın.</div>
+              </div>
+              <div><button className="btn" onClick={() => void toggleTry()} aria-pressed={tryMusic}>{tryMusic ? "■ Fonu durdur" : "▶ Fonu dene"}</button></div>
+            </>) : <div><label>Fon müziği</label><p className="fixed">Fon kullanılmayacak <button className="btn ghost" onClick={back}>Fon seç</button></p></div>}
+          </div>
+          <div className="warn" style={{ marginTop: 12, marginBottom: 0 }}>🎧 <b>Kulaklık tak.</b> {draft.trackId ? "Fon müziği hoparlörden çalarsa mikrofona karışır; ses ve fon ayrı kaydedildiği için kulaklıkla fon yalnızca sana duyulur." : "Hoparlör sesi mikrofona karışmasın diye kulaklık önerilir."}</div>
+        </section>
+      )}
+
       {(phase === "ready" || active || phase === "countdown") && (
         <section className="card">
           <div className="row between" style={{ marginBottom: 10 }}>
@@ -273,7 +328,7 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
               <button className="btn ghost" style={{ minHeight: 40, padding: "6px 14px" }} onClick={() => setFs(!fs)}>{fs ? "Küçült" : "Tam ekran"}</button>
             </div>
           </div>
-          <div ref={reader} className={"reader" + (fs ? " fs" : "")} tabIndex={0} aria-label="Şiir metni" style={{ ["--rs" as string]: prefs.current.reading.fontScale, ["--rl" as string]: prefs.current.reading.lineHeight }}>
+          <div ref={reader} className={"reader" + (fs ? " fs" : "")} tabIndex={0} aria-label="Şiir metni" style={{ ["--rs" as string]: fontScale, ["--rl" as string]: prefs.current.reading.lineHeight }}>
             {fs && !active && phase !== "countdown" && <button className="btn" style={{ position: "fixed", top: 12, right: 12 }} onClick={() => setFs(false)}>Kapat</button>}
             {(fs || active) && <div aria-hidden="true" style={{ height: "45%" }} />}
             <h3>{draft.title}</h3>
@@ -282,22 +337,32 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
             ))}
           </div>
           <label htmlFor="spd" style={{ marginTop: 12 }}>Kaydırma hızı</label>
-          <input id="spd" type="range" min={8} max={90} value={speed} onChange={(e) => { setSpeed(+e.target.value); patch({ reading: { speed: +e.target.value } }); }} />
+          <input id="spd" type="range" min={8} max={90} value={speed} onChange={(e) => { setSpeed(+e.target.value); setReading({ speed: +e.target.value }); }} />
         </section>
       )}
 
       {fs && active && (
-        <div className="bar fs-bar"><div className="inner">
-          <div className="timer" style={{ alignSelf: "center" }}>{phase === "recording" && <span className="rec-dot" aria-hidden />} {fmt(elapsed)}</div>
-          {phase === "recording"
-            ? <button className="btn" data-af onClick={pause}>Duraklat</button>
-            : <button className="btn primary" data-af onClick={resume}>Devam</button>}
-          <button className="btn danger" onClick={() => rec.current.stop()}>Bitir</button>
+        <div className="bar fs-bar"><div className="inner fs-inner">
+          <div className="fs-row">
+            <div className="timer fs-timer">{phase === "recording" && <span className="rec-dot" aria-hidden />} {fmt(elapsed)}</div>
+            <div className={"meter fs-meter" + (clip ? " clip" : "")} role="meter" aria-label="Mikrofon seviyesi" aria-valuemin={-60} aria-valuemax={0} aria-valuenow={Math.round(level)}><div style={{ width: pct + "%" }} /></div>
+          </div>
+          <div className="fs-row fs-ctl">
+            <label className="fs-l">Hız <input type="range" min={8} max={90} value={speed} aria-label="Teleprompter hızı" onChange={(e) => { setSpeed(+e.target.value); setReading({ speed: +e.target.value }); }} /></label>
+            {draft.trackId && <label className="fs-l">Fon <input type="range" min={-40} max={0} value={gain} aria-label="Fon ses seviyesi" onChange={(e) => setMusicMix({ gainDb: +e.target.value })} /></label>}
+            {draft.trackId && <button className="btn" disabled={musicOff} onClick={fadeMusic}>{musicOff ? "Fon bitti" : "Fonu yumuşakça bitir"}</button>}
+          </div>
+          <div className="fs-row fs-btns">
+            {phase === "recording"
+              ? <button className="btn" data-af onClick={pause}>Duraklat</button>
+              : <button className="btn primary" data-af onClick={resume}>Devam</button>}
+            <button className="btn danger" onClick={() => rec.current.stop()}>Bitir</button>
+          </div>
         </div></div>
       )}
       <div className="bar"><div className="inner">
         <button className="btn" disabled={active || phase === "countdown"} onClick={back}>← Fon</button>
-        {phase === "ready" && <button className="btn primary" data-af onClick={() => void begin()}>● Kaydı başlat</button>}
+        {phase === "ready" && <button className="btn primary" data-af onClick={() => void begin()}>● Kaydı Başlat</button>}
         {phase === "recording" && (<>
           <button className="btn" data-af onClick={pause}>Duraklat</button>
           <button className="btn danger" onClick={() => rec.current.stop()}>Bitir</button>

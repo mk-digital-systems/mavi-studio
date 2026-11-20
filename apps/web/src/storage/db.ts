@@ -1,6 +1,6 @@
 // IndexedDB bağlantısı ve şema sürümleme. Kütüphanesiz.
 const NAME = "siir-studio";
-const VERSION = 1;
+const VERSION = 2;
 
 let cached: Promise<IDBDatabase> | null = null;
 
@@ -18,6 +18,13 @@ export function openDb(): Promise<IDBDatabase> {
           takes.createIndex("projectId", "projectId");
           db.createObjectStore("audioChunks"); // anahtar: [takeId, seq]
         }
+        // eslint-disable-next-line no-fallthrough
+        case 1: { // v2: yalnızca YENİ depolar eklenir; mevcut şiir/deneme/ses verisine dokunulmaz.
+          const perf = db.createObjectStore("performances", { keyPath: "id" });
+          perf.createIndex("poemId", "poemId");
+          db.createObjectStore("flows", { keyPath: "id" });
+          db.createObjectStore("processedVoices"); // türev önbellek: anahtar = performans kimliği
+        }
       }
     };
     r.onsuccess = () => {
@@ -34,7 +41,8 @@ export const wrap = <T>(r: IDBRequest<T>) =>
   new Promise<T>((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 
 /** Tek depoda tek işlem. */
-export async function store(name: "projects" | "takes" | "audioChunks", mode: IDBTransactionMode) {
+export type StoreName = "projects" | "takes" | "audioChunks" | "performances" | "flows" | "processedVoices";
+export async function store(name: StoreName, mode: IDBTransactionMode) {
   const db = await openDb();
   const t = db.transaction(name, mode);
   const done = new Promise<void>((res, rej) => {
