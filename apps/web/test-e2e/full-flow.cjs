@@ -164,42 +164,56 @@ const click = (t) => Math.exp(-t * 4) * 0.6 * Math.sin(2 * Math.PI * 880 * t);
   const vproj = await page.evaluate(async () => new Promise((r) => { const q = indexedDB.open("siir-studio"); q.onsuccess = () => { const d = q.result, t = d.transaction("performances"), g = t.objectStore("performances").getAll(); t.oncomplete = () => { d.close(); r(g.result[0]?.videoProjectId); }; }; }));
   ok("video proje bağlantısı Kayıtlı Şiir'e yazıldı", typeof vproj === "string" && vproj.length > 5, String(vproj).slice(0, 12));
 
-  // ---------- 7) CANLI OKU: KAYIT YOK ----------
+  // ---------- 7) CANLI OKU: KAYIT YOK; şiir alanı geniş; kütüphane tek yerde ----------
+  const openLib = async () => { if (!(await page.locator(".live-lib").count())) await page.getByRole("button", { name: /Kütüphane/ }).click(); };
   const before = await snap();
   await page.evaluate(() => { window.__mr = 0; window.__gum = 0; });
   await nav("Yayın Stüdyosu", "Canlı Yayın Masası");
   await page.getByTestId("live-desk").waitFor();
   ok("Canlı Okuma — Kayıt yapılmıyor göstergesi", /Kayıt yapılmıyor/.test(await page.getByTestId("live-badge").innerText()));
-  await page.getByRole("tab", { name: /^Şiirlerim/ }).click();
+  const libHeads = await page.locator(".lib-h").allTextContents();
+  ok("Şiirlerim, Kayıtlı Şiirlerim ve Fon Müziklerim AYNI panelde görünüyor", libHeads.length === 3 && /Şiirlerim/.test(libHeads[0]) && /Kayıtlı Şiirlerim/.test(libHeads[1]) && /Fon Müziklerim/.test(libHeads[2]), libHeads.join(" | "));
+  ok("akış paneli yok, efektler kapalı köşe düğmesinde", (await page.locator(".rail").count()) === 0 && (await page.locator(".fx-sheet").isHidden()) && await page.getByTestId("fx-toggle").isVisible());
   await page.getByRole("button", { name: "Canlı oku" }).first().click();
   ok("şiir teleprompter'a geldi", await page.locator(".tele-title").innerText() === "Eski Şiir" && (await page.locator(".tele-line").count()) === 4);
+  const geo = await page.evaluate(() => { const r = document.querySelector(".tele").getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), vw: innerWidth, vh: innerHeight, lib: !!document.querySelector(".live-lib") }; });
+  ok("şiir alanı geniş (yan panel kapandı)", geo.w > geo.vw * 0.7 && geo.h > geo.vh * 0.45 && !geo.lib, JSON.stringify(geo));
   await page.getByRole("button", { name: /Otomatik kaydır/ }).click();
   await page.waitForTimeout(7500);
+  if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
   const top = await page.evaluate(() => document.querySelector(".tele").scrollTop);
   ok("teleprompter 5 sn bekleyip kaymaya başladı", top > 0, `scrollTop=${top}`);
-  await page.getByRole("tab", { name: /^Fon Müziklerim/ }).click();
+  await openLib();
   await page.getByRole("button", { name: "Fon yap" }).first().click();
   await page.getByRole("button", { name: "Fonu başlat" }).click();
   await page.getByRole("button", { name: "Fonu durdur" }).waitFor();
   ok("canlı okumada fon başlatıldı (ayrı kanal)", true);
+  await page.getByTestId("fx-toggle").click();
   const sb = page.locator(".sb-btn").first();
   await sb.click(); await page.waitForTimeout(300);
   ok("efekt düğmesi çalıyor (görsel olarak belli)", (await sb.getAttribute("aria-pressed")) === "true");
   await sb.click(); await page.waitForTimeout(300);
   ok("tekrar dokununca efekt durur", (await sb.getAttribute("aria-pressed")) === "false");
+  await page.getByRole("button", { name: "Efekt panelini kapat" }).click();
+  ok("efekt paneli kapanıyor", await page.locator(".fx-sheet").isHidden());
   await page.keyboard.press("1"); await page.waitForTimeout(300);
-  ok("klavye kısayolu efekti çalıyor", (await sb.getAttribute("aria-pressed")) === "true");
+  ok("panel kapalıyken de klavye kısayolu efekti çalıyor", (await sb.getAttribute("aria-pressed")) === "true" && /●/.test(await page.getByTestId("fx-toggle").innerText()));
   ok("Tüm Sesleri Durdur her zaman görünür", await page.getByTestId("panic").isVisible());
   await page.getByTestId("panic").click(); await page.waitForTimeout(500);
   const afterPanic = { sfx: await sb.getAttribute("aria-pressed"), music: await page.getByRole("button", { name: "Fonu başlat" }).isVisible(), scroll: await page.getByRole("button", { name: /Otomatik kaydır|Kaydırmayı durdur/ }).getAttribute("aria-pressed") };
   ok("Tüm Sesleri Durdur: efekt, fon ve kaydırma susar", afterPanic.sfx === "false" && afterPanic.music && afterPanic.scroll === "false", JSON.stringify(afterPanic));
+  await page.getByRole("button", { name: /Tam ekran/ }).click();
+  await page.waitForTimeout(400);
+  const big = await page.evaluate(() => ({ sideHidden: getComputedStyle(document.querySelector(".side")).display === "none", fixed: getComputedStyle(document.querySelector(".live-root")).position === "fixed" }));
+  ok("tam ekranda uygulama menüsü gizlenir, masa ekranı kaplar", big.sideHidden && big.fixed, JSON.stringify(big));
+  await page.getByRole("button", { name: /Küçült/ }).click();
   const noRec = await page.evaluate(() => ({ mr: window.__mr, gum: window.__gum }));
   const after = await snap();
   ok("Canlı Oku: MediaRecorder hiç oluşturulmadı, mikrofon açılmadı", noRec.mr === 0 && noRec.gum === 0, JSON.stringify(noRec));
   ok("Canlı Oku: yeni deneme / performans / şiir oluşmadı", after.takes === before.takes && after.perfs.length === before.perfs.length && after.projects === before.projects && after.blobs === before.blobs, `takes ${before.takes}→${after.takes}`);
 
   // ---------- 8) KAYITLI ŞİİRİ ÇAL ----------
-  await page.getByRole("tab", { name: /^Kayıtlı Şiirlerim/ }).click();
+  await openLib();
   await page.getByRole("button", { name: "Çal", exact: true }).first().click();
   await page.getByRole("button", { name: "▶ Oynat" }).waitFor({ timeout: 60000 });
   await page.waitForFunction(() => !document.querySelector(".tele-ctl [role=status]"), null, { timeout: 60000 });
@@ -209,8 +223,8 @@ const click = (t) => Math.exp(-t * 4) * 0.6 * Math.sin(2 * Math.PI * 880 * t);
   await page.getByRole("button", { name: "Fonu durdur" }).waitFor({ timeout: 10000 });
   ok("kayıtlı şiir sesi ve bağlı fon birlikte çalıyor (ayrı kanallar)", /Kayıtlı şiir çalınıyor/.test(await page.getByTestId("live-badge").innerText()));
   await page.waitForTimeout(1200);
-  const pos = await page.evaluate(() => document.querySelector(".tele-line.on")?.textContent || "");
-  ok("şiir metni sesle eş zamanlı vurgulanıyor", pos.length > 0, pos);
+  const posl = await page.evaluate(() => document.querySelector(".tele-line.on")?.textContent || "");
+  ok("şiir metni sesle eş zamanlı vurgulanıyor", posl.length > 0, posl);
   await page.getByLabel(/Fonlu oynat/).uncheck();
   await page.waitForTimeout(1600);
   ok("kayıtlı şiirin fonu canlı yayında kapatılabiliyor", await page.getByRole("button", { name: "Fonu başlat" }).isVisible());
@@ -221,7 +235,7 @@ const click = (t) => Math.exp(-t * 4) * 0.6 * Math.sin(2 * Math.PI * 880 * t);
   const after2 = await snap();
   ok("kayıtlı şiir oynatma yeni kayıt oluşturmadı", after2.takes === before.takes && after2.perfs.length === before.perfs.length && after2.blobs === before.blobs, `takes=${after2.takes} perfs=${after2.perfs.length}`);
 
-  // ---------- 9) YAYIN AKIŞI ----------
+  // ---------- 9) YAYIN AKIŞLARIM SAYFASI (masadan bağımsız) ----------
   await nav("Yayın Stüdyosu", "Yayın Akışlarım");
   await page.getByRole("button", { name: /Yeni akış/ }).first().click();
   await page.getByRole("button", { name: /Test Akışı/ }).waitFor();
@@ -231,20 +245,10 @@ const click = (t) => Math.exp(-t * 4) * 0.6 * Math.sin(2 * Math.PI * 880 * t);
   await page.getByRole("button", { name: "Aşağı taşı" }).first().click(); await page.waitForTimeout(400);
   const order = await page.locator(".flow-row .chip").allTextContents();
   ok("akış öğeleri sıralanabiliyor", order.join("|") === "Canlı okunacak şiir|Açılış|Ses efekti|Ara", order.join("|"));
-  await page.getByRole("button", { name: "Yayın masasına git" }).click();
-  await page.getByTestId("live-desk").waitFor();
-  await page.getByLabel("Akış seç").selectOption({ label: "Test Akışı" });
-  await page.getByRole("button", { name: "Sıradaki →" }).click();
-  await page.waitForTimeout(600);
-  const now1 = await page.locator(".rail-now b").allTextContents();
-  ok("akış: şu anki ve sıradaki öğe görünüyor", /Eski Şiir/.test(now1[0]) && /Açılış/.test(now1[1]), now1.join(" | "));
-  await page.getByRole("button", { name: "Sıradaki →" }).click(); await page.waitForTimeout(400);
-  await page.getByRole("button", { name: "Sıradaki →" }).click(); await page.waitForTimeout(600);
-  await page.getByRole("button", { name: "Sıradaki →" }).click(); await page.waitForTimeout(400);
-  ok("akış: 'Ara' öğesinde banner gösteriliyor", await page.locator(".live-banner h2").innerText() === "Ara");
 
   // ---------- 10) SAYFADAN AYRILINCA TÜM SESLER KAPANIR ----------
-  await page.getByRole("tab", { name: /^Fon Müziklerim/ }).click();
+  await nav("Yayın Stüdyosu", "Canlı Yayın Masası");
+  await page.getByTestId("live-desk").waitFor();
   await page.getByRole("button", { name: "Fon yap" }).first().click();
   await page.getByRole("button", { name: "Fonu başlat" }).click();
   await page.getByRole("button", { name: "Fonu durdur" }).waitFor();

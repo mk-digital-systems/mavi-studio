@@ -5,11 +5,10 @@ import { CHANNELS, type Desk } from "../../audio/broadcast/desk";
 /** Seviye göstergesi: kendi rAF döngüsüyle çizer (React'i her karede yeniden çizdirmez). */
 function Meter({ desk, id, color }: { desk: Desk; id: ChannelId | "master"; color: string }) {
   const bar = useRef<HTMLDivElement>(null);
-  const hold = useRef(-120);
   useEffect(() => {
     let raf = 0;
     const draw = () => {
-      const db = desk.levelDb(id); hold.current = Math.max(db, hold.current - 0.6);
+      const db = desk.levelDb(id);
       const pct = Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
       if (bar.current) { bar.current.style.width = pct + "%"; bar.current.dataset.hot = db > -3 ? "1" : "0"; }
       raf = requestAnimationFrame(draw);
@@ -31,40 +30,50 @@ type P = {
   warning: string;
 };
 
-/** Sağ taraf: ses masası. Her kanalda seviye, sessize alma, başlat/durdur, seviye göstergesi ve varsayılana dönme. */
-export function Mixer({ desk, tick, mic, music, voice, onStopSfx, ducking, micToOutput, warning }: P) {
+/**
+ * Alttaki ince ses şeridi: dört ayrı kanal (mikrofon · fon · kayıtlı şiir · efektler) tek satırda.
+ * Her kanalda başlat/durdur, seviye, sessize alma ve seviye göstergesi vardır; ayrıntılar (konuşma önceliği, varsayılana dönme) kapalı başlar.
+ */
+export function MixerStrip({ desk, tick, mic, music, voice, onStopSfx, ducking, micToOutput, warning }: P) {
   const [, force] = useState(0);
   void tick;
-  const rows: { id: ChannelId; action: { label: string; on: boolean; fn: () => void; disabled?: boolean; sub?: string } }[] = [
-    { id: "mic", action: { label: mic.on ? "Mikrofonu kapat" : "Mikrofonu aç", on: mic.on, fn: mic.toggle } },
-    { id: "music", action: { label: music.playing ? "Fonu durdur" : "Fonu başlat", on: music.playing, fn: music.toggle, disabled: !music.can, sub: music.label } },
-    { id: "voice", action: { label: voice.playing ? "Duraklat" : "Oynat", on: voice.playing, fn: voice.toggle, disabled: !voice.can, sub: voice.label } },
-    { id: "sfx", action: { label: "Efektleri durdur", on: desk.anySfxPlaying, fn: onStopSfx } },
+  const rows: { id: ChannelId; label: string; icon: string; on: boolean; fn: () => void; disabled?: boolean; sub?: string }[] = [
+    { id: "mic", label: mic.on ? "Mikrofonu kapat" : "Mikrofonu aç", icon: "🎙", on: mic.on, fn: mic.toggle },
+    { id: "music", label: music.playing ? "Fonu durdur" : "Fonu başlat", icon: music.playing ? "⏸" : "▶", on: music.playing, fn: music.toggle, disabled: !music.can, sub: music.label },
+    { id: "voice", label: voice.playing ? "Duraklat" : "Oynat", icon: voice.playing ? "⏸" : "▶", on: voice.playing, fn: voice.toggle, disabled: !voice.can, sub: voice.label },
+    { id: "sfx", label: "Efektleri durdur", icon: "■", on: desk.anySfxPlaying, fn: onStopSfx },
   ];
   return (
-    <div className="mixer" aria-label="Ses masası">
-      {warning && <div className="alert" role="alert" style={{ margin: 0 }}>⚠ {warning}</div>}
-      {rows.map(({ id, action }) => {
-        const c = desk.ch[id], meta = CHANNELS.find((x) => x.id === id)!;
-        return (
-          <section key={id} className={"mx-ch" + (c.muted ? " muted" : "")} style={{ ["--ch" as string]: meta.color }} aria-label={meta.label}>
-            <div className="mx-h"><b>{meta.label}</b>{action.sub && <span className="small muted mx-sub">{action.sub}</span>}</div>
-            <Meter desk={desk} id={id} color={meta.color} />
-            <input type="range" min={0} max={100} value={Math.round(c.volume * 100)} aria-label={`${meta.label} ses seviyesi`}
-              onChange={(e) => { desk.setVolume(id, +e.target.value / 100); force((n) => n + 1); }} />
-            <div className="mx-btns">
-              <button className={"btn" + (action.on ? " on" : "")} disabled={action.disabled} onClick={action.fn} aria-pressed={action.on}>{action.label}</button>
-              <button className="btn" aria-pressed={c.muted} onClick={() => { desk.setMuted(id, !c.muted); force((n) => n + 1); }}>{c.muted ? "Sesi aç" : "Sessize al"}</button>
-              <button className="btn ghost" onClick={() => { desk.resetChannel(id); force((n) => n + 1); }} title="Varsayılan seviyeye dön">↺</button>
-            </div>
-            {id === "mic" && mic.err && <p className="small" role="alert" style={{ color: "var(--danger)", margin: 0 }}>{mic.err}</p>}
-          </section>
-        );
-      })}
-      <section className="mx-ch master" aria-label="Ana çıkış"><div className="mx-h"><b>Ana çıkış</b><span className="small muted">limiter açık</span></div><Meter desk={desk} id="master" color="#f3ece2" /></section>
-      <label className="row chk"><input type="checkbox" checked={ducking.enabled} onChange={(e) => ducking.set(e.target.checked)} /> Konuşma önceliği: konuşurken fonu kıs{desk.ducking ? " · şimdi kısılıyor" : ""}</label>
-      <label className="row chk"><input type="checkbox" checked={micToOutput.on} onChange={(e) => micToOutput.set(e.target.checked)} /> Mikrofonu ana çıkışa ver</label>
-      <p className="small muted" style={{ margin: 0 }}>🎧 Fon mikrofona karışmasın diye <b>kulaklık</b> tak. Mikrofonu çıkışa verirken hoparlör kullanma.</p>
+    <div className="strip" aria-label="Ses masası">
+      {warning && <div className="alert strip-warn" role="alert">⚠ {warning}</div>}
+      <div className="strip-row">
+        {rows.map((r) => {
+          const c = desk.ch[r.id], meta = CHANNELS.find((x) => x.id === r.id)!;
+          return (
+            <section key={r.id} className={"st-ch" + (c.muted ? " muted" : "")} style={{ ["--ch" as string]: meta.color }} aria-label={meta.label}>
+              <button className={"st-act" + (r.on ? " on" : "")} disabled={r.disabled} aria-pressed={r.on} aria-label={r.label} title={r.label} onClick={r.fn}>{r.icon}</button>
+              <div className="st-body">
+                <span className="st-name">{meta.label}{r.sub ? <small> · {r.sub}</small> : null}</span>
+                <Meter desk={desk} id={r.id} color={meta.color} />
+                <input type="range" min={0} max={100} value={Math.round(c.volume * 100)} aria-label={`${meta.label} ses seviyesi`}
+                  onChange={(e) => { desk.setVolume(r.id, +e.target.value / 100); force((n) => n + 1); }} />
+              </div>
+              <button className="st-mute" aria-pressed={c.muted} aria-label={c.muted ? `${meta.label} sesini aç` : `${meta.label} sessize al`} onClick={() => { desk.setMuted(r.id, !c.muted); force((n) => n + 1); }}>{c.muted ? "🔇" : "🔈"}</button>
+            </section>
+          );
+        })}
+        <section className="st-ch st-master" aria-label="Ana çıkış"><div className="st-body"><span className="st-name">Ana çıkış <small>· limiter açık</small></span><Meter desk={desk} id="master" color="#f3ece2" /></div></section>
+      </div>
+      {mic.err && <p className="small" role="alert" style={{ color: "var(--danger)", margin: "4px 0 0" }}>{mic.err}</p>}
+      <details className="st-more">
+        <summary>Ses ayrıntıları</summary>
+        <div className="st-more-b">
+          <label className="row chk"><input type="checkbox" checked={ducking.enabled} onChange={(e) => ducking.set(e.target.checked)} /> Konuşma önceliği: konuşurken fonu kıs{desk.ducking ? " · şimdi kısılıyor" : ""}</label>
+          <label className="row chk"><input type="checkbox" checked={micToOutput.on} onChange={(e) => micToOutput.set(e.target.checked)} /> Mikrofonu ana çıkışa ver</label>
+          <span className="row">{CHANNELS.map((c) => <button key={c.id} className="btn ghost" onClick={() => { desk.resetChannel(c.id); force((n) => n + 1); }}>{c.label} ↺</button>)}</span>
+          <p className="small muted" style={{ margin: 0 }}>🎧 Fon mikrofona karışmasın diye <b>kulaklık</b> tak. Mikrofonu çıkışa verirken hoparlör kullanma.</p>
+        </div>
+      </details>
     </div>
   );
 }

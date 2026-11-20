@@ -162,7 +162,7 @@ export function App() {
       <div className="sr" role="status" aria-live="polite">{announce}</div>
       <Sidebar section={section} compact={sidebar === "compact"} onGo={(s) => void go(s)} onNew={() => void newRecording()} />
       <div className="content">
-        <div className="shell">
+        <div className={"shell" + (section === "live" ? " wide" : "")}>
           {saveError && <div className="alert" role="alert">{saveError}</div>}
           <main id="main" ref={mainRef} tabIndex={-1}>
             <ErrorBoundary key={section + (inWizard ? step : "")}>
@@ -186,7 +186,7 @@ export function App() {
               </>)}
               {(section === "video" || section === "archive") && <VideoHub data={data} actions={actions} inbox={inbox} clearInbox={() => setInbox(null)} initialTab={section === "archive" ? "archive" : undefined} />}
               {section === "performances" && <Performances data={data} actions={actions} />}
-              {section === "live" && <LiveDesk data={data} actions={actions} initialPerformance={liveInbox} onConsumed={() => setLiveInbox(null)} />}
+              {section === "live" && <LiveDesk data={data} initialPerformance={liveInbox} onConsumed={() => setLiveInbox(null)} />}
               {section === "flows" && <Flows data={data} actions={actions} />}
               {section === "sfx" && <SfxLibrary />}
               {section === "live-settings" && <BroadcastSettings />}
