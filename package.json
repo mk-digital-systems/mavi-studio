@@ -1,0 +1,14 @@
+{
+  "name": "siir-studyosu",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w apps/web",
+    "dev:api": "npm run dev -w apps/api",
+    "typecheck": "npm run typecheck -w apps/web && npm run typecheck -w apps/api && npm run typecheck -w apps/video-worker",
+    "dev:video": "npm run dev -w apps/video-worker"
+  }
+}

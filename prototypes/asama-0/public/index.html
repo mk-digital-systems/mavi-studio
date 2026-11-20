@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Şiir Stüdyosu — Aşama 0 ses doğrulaması</title>
+<style>
+  body{font:16px/1.5 system-ui,sans-serif;max-width:720px;margin:0 auto;padding:16px;background:#faf6f0;color:#2a2118}
+  h1{font-size:1.3rem} section{background:#fff;border:1px solid #e5d9c8;border-radius:10px;padding:12px 14px;margin:12px 0}
+  button,select{font:inherit;padding:10px 14px;margin:4px 4px 4px 0;min-height:44px}
+  #meter{height:18px;background:#eee;border-radius:9px;overflow:hidden} #bar{height:100%;width:0;background:#6a994e}
+  #bar.clip{background:#c0392b} pre{white-space:pre-wrap;font-size:.85rem;background:#f4efe6;padding:8px;border-radius:6px}
+  .note{color:#7a6a55;font-size:.9rem}
+</style>
+</head>
+<body>
+<h1>Şiir Stüdyosu — Aşama 0: ses doğrulaması</h1>
+<p class="note">Atılabilir prototiptir; ürün değildir. Ses yalnızca bu tarayıcıda (IndexedDB) tutulur, sunucuya gönderilmez.</p>
+
+<section>
+  <b>1. Ortam</b>
+  <pre id="env">…</pre>
+</section>
+
+<section>
+  <b>2. Mikrofon</b><br>
+  <button id="perm">Mikrofon izni iste</button>
+  <select id="dev" aria-label="Mikrofon cihazı"></select>
+  <div id="meter" role="progressbar" aria-label="Giriş seviyesi"><div id="bar"></div></div>
+  <div id="lvl" class="note" aria-live="polite">—</div>
+</section>
+
+<section>
+  <b>3. Kayıt (48 kHz · 24-bit · mono, parçalı IndexedDB)</b><br>
+  <label>Süre sınırı (sn) <input id="limit" type="number" value="300" min="5" max="900"></label><br>
+  <button id="rec">Kaydı başlat</button>
+  <button id="stop" disabled>Bitir</button>
+  <button id="play" disabled>Dinle</button>
+  <button id="wav" disabled>WAV indir (24-bit)</button>
+  <pre id="recinfo">—</pre>
+</section>
+
+<section>
+  <b>4. Gecikme</b><br>
+  <button id="lat">Gecikme değerlerini oku</button>
+  <pre id="latinfo">—</pre>
+  <span class="note">Gerçek uçtan uca gecikme için: kablolu ve Bluetooth kulaklıkta ayrı ayrı çalıştırıp not edin.</span>
+</section>
+
+<section>
+  <b>5. Sunucu miks denemesi (sentetik ses, ffmpeg)</b><br>
+  <button id="mix">ffmpeg miks denemesi</button>
+  <pre id="mixinfo">—</pre>
+</section>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

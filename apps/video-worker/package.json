@@ -1,0 +1,21 @@
+{
+  "name": "@siir/video-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "typecheck": "tsc -p .",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@siir/contracts": "*",
+    "@siir/server-kit": "*",
+    "fastify": "^5.12.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.0",
+    "@types/node": "^22.0.0"
+  }
+}
