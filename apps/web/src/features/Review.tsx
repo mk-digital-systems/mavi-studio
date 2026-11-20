@@ -4,6 +4,7 @@ import type { Draft, Patch } from "../App";
 import { deleteTake, loadTakeBlob } from "../storage/repo";
 import { fmt, slug } from "../shared/util";
 import { claim, release } from "../shared/exclusive";
+import { PreviewPlayer } from "../audio/preview";
 import { FxStudio } from "./FxStudio";
 import { ExportPanel } from "./ExportPanel";
 
@@ -15,6 +16,15 @@ function TakeRow({ t, i, draft, patch, onRemove, onStudio }: { t: Take; i: numbe
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // Dinleme önizlemesi: seçili fon müziği, deneme çalarken yanında çalar (kayıtta müzik kayda girmez; son miks Dışa aktar'da yapılır).
+  const music = useRef<PreviewPlayer>(null as unknown as PreviewPlayer);
+  if (!music.current) music.current = new PreviewPlayer();
+  useEffect(() => { const m = music.current; return () => m.stop(); }, []);
+  const startMusic = () => {
+    if (!draft.trackId) return;
+    music.current.setVolume(Math.min(1, Math.max(0.05, Math.pow(10, (draft.mix.music.gainDb + 6) / 20))));
+    void music.current.play(draft.trackId).catch(() => setErr("Fon müziği çalınamadı; deneme müziksiz çalıyor."));
+  };
   useEffect(() => () => { if (url) URL.revokeObjectURL(url); release("take-" + t.id); }, [url, t.id]);
   useEffect(() => { if (url) audioEl.current?.focus(); }, [url]);
   useEffect(() => { const h = () => { if (url) URL.revokeObjectURL(url); }; window.addEventListener("pagehide", h); return () => window.removeEventListener("pagehide", h); }, [url]);
@@ -39,7 +49,7 @@ function TakeRow({ t, i, draft, patch, onRemove, onStudio }: { t: Take; i: numbe
         <b>Deneme {i + 1}</b> {isMain && <span className="badge">ANA</span>}
         <div className="muted small">{fmt(t.durationMs)} · {new Date(t.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}{t.clipped ? " · ⚠ taşma" : ""}</div>
       </div>
-      {url ? <audio ref={audioEl} controls autoPlay src={url} aria-label={`Deneme ${i + 1}`} onPlay={() => claim("take-" + t.id, () => audioEl.current?.pause())} /> : (
+      {url ? <audio ref={audioEl} controls autoPlay src={url} aria-label={`Deneme ${i + 1}`} onPlay={() => { claim("take-" + t.id, () => audioEl.current?.pause()); startMusic(); }} onPause={() => music.current.stop()} onEnded={() => music.current.stop()} /> : (
         <button className="btn" disabled={busy} onClick={() => void prepare()}>{busy ? "Hazırlanıyor…" : "▶ Dinle"}</button>
       )}
       <div className="row">
@@ -79,7 +89,7 @@ export function Review({ draft, patch, takes, reloadTakes, back, wantVideo }: P)
         <h3>Sırada ne var?</h3>
         <p className="muted">Yukarıdaki “Dışa aktar” ile efektli ve fon müzikli son kaydını WAV veya MP3 olarak alabilirsin. “WAV indir” ise efektsiz ham kaydını verir (48 kHz · 24-bit · mono).</p>
         <p className="small muted">Kayıtların yalnızca bu tarayıcıda saklanır; tarayıcı verisi silinirse kaybolabilir. Önemli denemeleri WAV olarak indir.</p>
-        {draft.trackId && <p className="small muted">Seçili fon müziği ham olarak indirilemez; yalnızca şiir sesiyle birleşmiş çıktı sunulacak.</p>}
+        {draft.trackId && <p className="small muted">Denemeyi dinlerken fon müziği yaklaşık seviyede yanında çalar; kesin denge ve okurken kısma “Dışa aktar”daki ayarlarla yapılır. Seçili fon müziği ham olarak indirilemez; yalnızca şiir sesiyle birleşmiş çıktı sunulacak.</p>}
       </section>
       <div className="bar"><div className="inner">
         <button className="btn" onClick={back}>← Yeni deneme al</button>
