@@ -5,7 +5,7 @@ import type { LocalData } from "../shared/useLocalData";
 import { supported } from "../audio/recorder";
 import { downloadBackup } from "../storage/backup";
 import { deleteProject } from "../storage/repo";
-import { BackupTools, EmptyState, PageHeader, ProjectCard, RecoveryBanner } from "./parts";
+import { BackupTools, EmptyState, PageHeader, RecoveryBanner } from "./parts";
 
 const norm = (s: string) => s.toLocaleLowerCase("tr");
 
@@ -39,21 +39,35 @@ export function PoemLibrary({ data, actions }: { data: LocalData; actions: Actio
           {q ? "Başka bir sözcük dene." : "Yazdığın veya yapıştırdığın şiirler burada listelenir."}
         </EmptyState>
       ) : (
-        <div className="pgrid">
+        <ul className="plist">
           {list.map((p) => {
             const t = data.takes[p.id] ?? [];
+            const name = p.title || "Adsız şiir";
             return (
-              <ProjectCard key={p.id} p={p} takes={t} level={2} actions={<>
-                <button className="btn primary" onClick={() => actions.open(p, "poem")}>Aç</button>
-                <button className="btn ghost" onClick={() => downloadBackup(p)}>Yedek</button>
-                <button className="btn ghost" aria-label={`${p.title || "Adsız şiir"} sil`} onClick={async () => {
-                  if (!confirm(`“${p.title || "Adsız şiir"}” ve tüm kayıt denemeleri bu cihazdan silinsin mi? Bu işlem geri alınamaz.`)) return;
-                  await deleteProject(p.id); await data.reload();
-                }}><Icon name="trash" size={18} /></button>
-              </>} />
+              <li key={p.id}>
+                <details className="pitem">
+                  <summary>{name}</summary>
+                  <div className="pitem-b">
+                    <p className="pitem-text">{p.text.trim() || "Henüz metin yok"}</p>
+                    <div className="chips">
+                      <span className="chip">{t.length} ses denemesi</span>
+                      {p.trackId && <span className="chip">fon müziği seçili</span>}
+                      <span className="chip">{new Date(p.updatedAt).toLocaleDateString("tr-TR")}</span>
+                    </div>
+                    <div className="row pcard-act">
+                      <button className="btn primary" onClick={() => actions.open(p, "poem")}>Aç</button>
+                      <button className="btn ghost" onClick={() => downloadBackup(p)}>Yedek</button>
+                      <button className="btn ghost" aria-label={`${name} sil`} onClick={async () => {
+                        if (!confirm(`“${name}” ve tüm kayıt denemeleri bu cihazdan silinsin mi? Bu işlem geri alınamaz.`)) return;
+                        await deleteProject(p.id); await data.reload();
+                      }}><Icon name="trash" size={18} /></button>
+                    </div>
+                  </div>
+                </details>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
 
       <section className="card sec" aria-labelledby="pb-h">

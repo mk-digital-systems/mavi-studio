@@ -1347,9 +1347,9 @@ $('#audioControls').onclick=safely(async e=>{const pick=e.target.closest('[data-
 $('#audioPicker').onchange=safely(async e=>{const f=e.target.files[0],w=e.target.dataset.which,epoch=projectEpoch;e.target.value='';if(!f)return;const a=await makeAudio(f,w);if(epoch!==projectEpoch)return;pause();audioFiles.set(w,a);state.audioAssets[w]=registerAsset(f,'audio');assets.get(state.audioAssets[w]).buffer=a.raw;state[w+'Name']=f.name;changed();renderAudio();});
 // Üst sayfadan (Mavi Stüdyo) gelen şiir kaydını anlatım sesi olarak ekler. Yalnızca aynı kaynaktan kabul edilir.
 addEventListener('message',safely(async e=>{const d=e.data;if(e.origin!==location.origin||!d||d.type!=='mk:add-audio'||!(d.blob instanceof Blob))return;
-  const epoch=projectEpoch,f=new File([d.blob],String(d.name||'siir-kaydi.wav'),{type:d.blob.type||'audio/wav'}),a=await makeAudio(f,'nar');
-  if(epoch!==projectEpoch)return;pause();audioFiles.set('nar',a);state.audioAssets.nar=registerAsset(f,'audio');assets.get(state.audioAssets.nar).buffer=a.raw;state.narName=f.name;changed();renderAudio();
-  toast('Şiir kaydı anlatım sesi olarak eklendi.');parent!==window&&parent.postMessage({type:'mk:audio-added',name:f.name},location.origin);}));
+  const w=d.slot==='amb'?'amb':'nar',epoch=projectEpoch,f=new File([d.blob],String(d.name||(w==='amb'?'fon-muzigi.mp3':'siir-kaydi.wav')),{type:d.blob.type||'audio/wav'}),a=await makeAudio(f,w);
+  if(epoch!==projectEpoch)return;pause();audioFiles.set(w,a);state.audioAssets[w]=registerAsset(f,'audio');assets.get(state.audioAssets[w]).buffer=a.raw;state[w+'Name']=f.name;changed();renderAudio();
+  toast(w==='amb'?'Fon müziği eklendi.':'Şiir kaydı anlatım sesi olarak eklendi.');parent!==window&&parent.postMessage({type:'mk:audio-added',slot:w,name:f.name},location.origin);}));
 parent!==window&&parent.postMessage({type:'mk:ready'},location.origin);
 $('#audioControls').oninput=e=>{const w=e.target.dataset.volume;if(w){pause();state.vol[w]=+e.target.value/100;changed('volume:'+w);}if(e.target.id==='ambLoop'){pause();state.ambLoop=e.target.checked;changed();}};
 $('#audioControls').onchange=()=>history.endGroup();
