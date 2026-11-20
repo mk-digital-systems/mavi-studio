@@ -131,3 +131,6 @@ main:focus{outline:none}
 
 /* Okuma ayarları (genel stüdyo ayarı): yazı boyutu ve satır aralığı */
 .reader .line{font-size:calc(clamp(1.4rem,4.5vw,2rem) * var(--rs,1));line-height:var(--rl,1.5)}
+
+/* Kayıt sırasında tam ekran okuma: Duraklat / Bitir düğmeleri okuma ekranının üstünde kalır */
+.bar.fs-bar { z-index: 25; left: 0; }

@@ -15,6 +15,8 @@ type P = {
   draft: Draft; patch: Patch; takes: Take[]; reloadTakes: () => Promise<void>;
   ensureSaved: () => Promise<void>; back: () => void; next: () => void;
 };
+/** Kayıt başladıktan sonra şiir bu kadar süre ekranın ortasında durur; sonra kaymaya başlar. */
+const HOLD_MS = 5000;
 type Phase = "idle" | "ready" | "countdown" | "recording" | "paused" | "done";
 
 export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, back, next }: P) {
@@ -24,6 +26,7 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
   const reader = useRef<HTMLDivElement>(null);
   const prefs = useRef(getSettings());
   const take = useRef<Take | null>(null);
+  const holdUntil = useRef(0);
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [err, setErr] = useState("");
@@ -55,7 +58,7 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
     const r = rec.current, m = music.current;
     r.onLevel = (db, c) => { setLevel(db); setClip(c); };
     r.onEnd = async (res: RecResult) => {
-      m.stop(); guard.recording = false; setMonitor(false); wakeLock.release(); setBgWarn(""); setInterrupted(false);
+      m.stop(); guard.recording = false; setFs(false); setMonitor(false); wakeLock.release(); setBgWarn(""); setInterrupted(false);
       const t = take.current; take.current = null;
       if (t) {
         if (res.durationMs < 1000) await deleteTake(t.id); // çok kısa kayıt atılır
@@ -102,6 +105,7 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
     if (phase !== "recording" || !autoScroll) return;
     let raf = 0, last = performance.now(), pos = reader.current?.scrollTop ?? 0;
     const tick = (now: number) => {
+      if (now < holdUntil.current) { last = now; raf = requestAnimationFrame(tick); return; }
       pos += (speed * (now - last)) / 1000; last = now;
       if (reader.current) reader.current.scrollTop = pos;
       raf = requestAnimationFrame(tick);
@@ -127,6 +131,7 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
     if (sp === "blocked") { setErr(tr.errors.noSpace); return; }
     if (sp === "low") setInfo(tr.errors.lowSpace);
     void requestPersist();
+    setFs(true); // şiir büyük ekranda öne gelir
     if (reader.current) reader.current.scrollTop = 0;
     if (countFrom > 0) {
       setPhase("countdown");
@@ -147,10 +152,11 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
       if (draft.trackId) await music.current.play(draft.trackId).catch(() => setInfo("Fon müziği çalınamadı; kayıt müziksiz devam ediyor."));
       await rec.current.start();
       guard.recording = true; void wakeLock.acquire(); // ekran uyumasın
+      holdUntil.current = performance.now() + HOLD_MS;
       setPhase("recording");
     } catch {
       if (take.current) { await deleteTake(take.current.id).catch(() => {}); take.current = null; }
-      setErr(tr.errors.generic); setPhase("ready");
+      setErr(tr.errors.generic); setFs(false); setPhase("ready");
     }
   };
   const pause = () => { rec.current.pause(); music.current.stop(); setPhase("paused"); };
@@ -178,7 +184,7 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
       {phase === "countdown" && (
         <div className="countdown" role="alert" aria-live="assertive">
           <span>{count}</span>
-          <button className="btn" style={{ position: "absolute", bottom: 40, fontSize: "1rem" }} onClick={() => setPhase("ready")}>Vazgeç</button>
+          <button className="btn" style={{ position: "absolute", bottom: 40, fontSize: "1rem" }} onClick={() => { setFs(false); setPhase("ready"); }}>Vazgeç</button>
         </div>
       )}
       <section className="card">
@@ -268,7 +274,8 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
             </div>
           </div>
           <div ref={reader} className={"reader" + (fs ? " fs" : "")} tabIndex={0} aria-label="Şiir metni" style={{ ["--rs" as string]: prefs.current.reading.fontScale, ["--rl" as string]: prefs.current.reading.lineHeight }}>
-            {fs && <button className="btn" style={{ position: "fixed", top: 12, right: 12 }} onClick={() => setFs(false)}>Kapat</button>}
+            {fs && !active && phase !== "countdown" && <button className="btn" style={{ position: "fixed", top: 12, right: 12 }} onClick={() => setFs(false)}>Kapat</button>}
+            {(fs || active) && <div aria-hidden="true" style={{ height: "45%" }} />}
             <h3>{draft.title}</h3>
             {poem.stanzas.map((s) => (
               <div key={s.id} className="stanza">{s.lines.map((l) => <div key={l.id} className="line">{l.text}</div>)}</div>
@@ -279,6 +286,15 @@ export function RecordScreen({ draft, patch, takes, reloadTakes, ensureSaved, ba
         </section>
       )}
 
+      {fs && active && (
+        <div className="bar fs-bar"><div className="inner">
+          <div className="timer" style={{ alignSelf: "center" }}>{phase === "recording" && <span className="rec-dot" aria-hidden />} {fmt(elapsed)}</div>
+          {phase === "recording"
+            ? <button className="btn" data-af onClick={pause}>Duraklat</button>
+            : <button className="btn primary" data-af onClick={resume}>Devam</button>}
+          <button className="btn danger" onClick={() => rec.current.stop()}>Bitir</button>
+        </div></div>
+      )}
       <div className="bar"><div className="inner">
         <button className="btn" disabled={active || phase === "countdown"} onClick={back}>← Fon</button>
         {phase === "ready" && <button className="btn primary" data-af onClick={() => void begin()}>● Kaydı başlat</button>}
