@@ -15,16 +15,24 @@ test("8 hazır atmosfer var ve değerleri güvenli aralıkta", () => {
     assert.ok(p.shape.decaySec <= LIMITS.maxDecaySec, `${id} decay`);
     const r = resolveParams(defaultFx(id));
     assert.ok(r.wet <= LIMITS.maxWet, `${id} wet`);
-    assert.ok(r.wet <= 0.2, `${id} varsayılan yankı ölçülü`);
+    assert.ok(r.wet <= 0.65, `${id} varsayılan yankı ölçülü`);
   }
 });
 
-test("yankı kaydırıcısı en uçta bile %25'i aşmaz, süre 3 sn'yi aşmaz", () => {
+test("yankı kaydırıcısı en uçta bile üst sınırı aşmaz, süre 3 sn'yi aşmaz", () => {
   for (const id of PRESET_ORDER) {
     const s = { ...defaultFx(id), controls: { ...defaultFx(id).controls, reverb: 100 } };
     const r = resolveParams(s);
-    assert.ok(r.wet <= 0.25 + 1e-9); assert.ok(r.reverb.decaySec <= 3);
+    assert.ok(r.wet <= LIMITS.maxWet + 1e-9); assert.ok(r.reverb.decaySec <= 3);
   }
+});
+
+test("atmosferler birbirinden duyulur ölçüde farklıdır (ton ve yankı)", () => {
+  const r = (id: Parameters<typeof defaultFx>[0]) => resolveParams(defaultFx(id));
+  assert.ok(r("warm").eq.lowShelfDb - r("clean").eq.lowShelfDb >= 3, "sıcak: bas daha dolgun");
+  assert.ok(r("stage").eq.presenceDb - r("clean").eq.presenceDb >= 3, "sahne: daha parlak");
+  assert.ok(r("cinematic").wet >= 0.5 && r("clean").wet <= 0.15, "sinematik: belirgin yankı, temiz: kuru");
+  assert.ok(r("vintage").eq.lpHz <= 5000 && r("vintage").hpfHz >= 300, "radyo: bant sınırlı");
 });
 
 test("atmosfer değişimi kontrolleri günceller, çıkış seviyesini korur", () => {

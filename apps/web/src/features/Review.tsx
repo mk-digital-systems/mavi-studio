@@ -55,7 +55,7 @@ function TakeRow({ t, i, draft, patch, onRemove, onStudio }: { t: Take; i: numbe
       <div className="row">
         {!isMain && <button className="btn ghost" onClick={() => patch({ primaryTakeId: t.id })}>Ana yap</button>}
         <button className="btn" onClick={onStudio}>Ses stüdyosu</button>
-        <button className="btn" onClick={() => void download()}>WAV indir</button>
+        <button className="btn" onClick={() => void download()}>Ham ses indir (müziksiz)</button>
         <button className="btn ghost" onClick={onRemove}>Sil</button>
       </div>
       {err && <div className="alert" style={{ flex: "1 1 100%", margin: 0 }}>{err}</div>}
@@ -87,7 +87,7 @@ export function Review({ draft, patch, takes, reloadTakes, back, wantVideo }: P)
       <ExportPanel draft={draft} patch={patch} takes={takes} defaultForVideo={wantVideo} />
       <section className="card">
         <h3>Sırada ne var?</h3>
-        <p className="muted">Yukarıdaki “Dışa aktar” ile efektli ve fon müzikli son kaydını WAV veya MP3 olarak alabilirsin. “WAV indir” ise efektsiz ham kaydını verir (48 kHz · 24-bit · mono).</p>
+        <p className="muted">Yukarıdaki “Dışa aktar” ile efektli ve fon müzikli son kaydını WAV veya MP3 olarak alabilirsin. “Ham ses indir” ise yalnızca efektsiz, müziksiz ham sesini verir (48 kHz · 24-bit · mono).</p>
         <p className="small muted">Kayıtların yalnızca bu tarayıcıda saklanır; tarayıcı verisi silinirse kaybolabilir. Önemli denemeleri WAV olarak indir.</p>
         {draft.trackId && <p className="small muted">Denemeyi dinlerken fon müziği yaklaşık seviyede yanında çalar; kesin denge ve okurken kısma “Dışa aktar”daki ayarlarla yapılır. Seçili fon müziği ham olarak indirilemez; yalnızca şiir sesiyle birleşmiş çıktı sunulacak.</p>}
       </section>

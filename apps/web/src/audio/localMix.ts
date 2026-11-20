@@ -20,6 +20,14 @@ function speechRuns(buf: AudioBuffer): [number, number][] {
   return runs;
 }
 
+const rmsOf = (x: Float32Array) => { let q = 0; for (let i = 0; i < x.length; i += 2) q += x[i] * x[i]; return Math.sqrt(q / Math.max(1, x.length / 2)); };
+/** Sesin konuşulan bölümlerindeki RMS (doğrusal). */
+function speechRms(buf: AudioBuffer, runs: [number, number][]): number {
+  const ch = buf.getChannelData(0); let q = 0, n = 0;
+  for (const [a, b] of runs) for (let i = Math.floor(a * buf.sampleRate); i < Math.min(ch.length, Math.floor(b * buf.sampleRate)); i += 2) { q += ch[i] * ch[i]; n++; }
+  return n ? Math.sqrt(q / n) : rmsOf(ch);
+}
+
 /**
  * Cihazda miks: işlenmiş şiir sesi + yüklenen fon müziği (döngülü, seviye, giriş/çıkış yumuşatma, otomatik kısma).
  * Çıktı stereo 48 kHz 24-bit WAV; tepe değeri taşarsa tümü ölçeklenir.
@@ -42,7 +50,11 @@ export async function mixWithMusic(voice: Blob, music: Blob, m: MixSettings, onP
   ms.buffer = mu; ms.loop = true;
   const fade = off.createGain(), duck = off.createGain();
   ms.connect(fade).connect(duck).connect(off.destination);
-  const base = dbToGain(m.music.gainDb), fi = Math.min(m.music.fadeInSec, end / 2), fo = Math.min(m.music.fadeOutSec, end / 2);
+  // Müziğin kayıt düzeyi dosyadan dosyaya çok değişir: önce şiirin konuşma düzeyine eşitlenir, seviye ayarı ona göre uygulanır.
+  // 0 dB = müzik okuma sesiyle aynı yükseklikte; varsayılan (−18 dB) yaklaşık −9 dB’ye denk gelir (+9 dB telafi).
+  const runs = speechRuns(v), mRms = rmsOf(mu.getChannelData(0)), sRms = speechRms(v, runs);
+  const norm = mRms > 1e-5 && sRms > 1e-5 ? Math.min(20, sRms / mRms) : 1;
+  const base = norm * dbToGain(m.music.gainDb + 9), fi = Math.min(m.music.fadeInSec, end / 2), fo = Math.min(m.music.fadeOutSec, end / 2);
   fade.gain.setValueAtTime(fi > 0 ? 0 : base, mStart);
   if (fi > 0) fade.gain.linearRampToValueAtTime(base, mStart + fi);
   fade.gain.setValueAtTime(base, Math.max(mStart + fi, end - fo));
@@ -51,7 +63,7 @@ export async function mixWithMusic(voice: Blob, music: Blob, m: MixSettings, onP
   if (m.ducking.enabled) {
     const low = dbToGain(-m.ducking.amountDb), att = m.ducking.attackMs / 1000, rel = m.ducking.releaseMs / 1000;
     let last = 0;
-    for (const [s0, e0] of speechRuns(v)) {
+    for (const [s0, e0] of runs) {
       const s = s0 + vStart, e = e0 + vStart, tA = Math.max(last, s - att);
       duck.gain.linearRampToValueAtTime(1, tA);
       duck.gain.linearRampToValueAtTime(low, Math.max(tA, s));
